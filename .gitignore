@@ -1,0 +1,7 @@
+node_modules/
+Packages/
+*.rbxl*
+*.rblx*
+*.luau~
+*.swp
+Session.json

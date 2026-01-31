@@ -1,0 +1,16 @@
+# Selene config
+ignore = [
+  "src/Shared/Types/*.luau"  # type defs
+]
+
+[[rule]]
+name = "no-shadowing"
+enabled = true
+
+[[rule]]
+name = "undefined-global"
+enabled = true
+
+[[rule]]
+name = "unused-variable"
+enabled = true
