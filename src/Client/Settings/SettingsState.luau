@@ -12,16 +12,14 @@ local SettingsConfig = require(Shared.Config.SettingsConfig :: ModuleScript)
 type CameraSettings = {
 	Distance: number,
 	Sensitivity: number,
-	AimSensitivity: number,
 	TouchSensitivity: number,
-	AimTouchSensitivity: number,
 }
 
 type VisualSettings = {
 	MotionBlur: number,
 }
 
-type CameraSettingKey = "Distance" | "Sensitivity" | "AimSensitivity" | "TouchSensitivity" | "AimTouchSensitivity"
+type CameraSettingKey = "Distance" | "Sensitivity" | "TouchSensitivity"
 type VisualSettingKey = "MotionBlur"
 
 export type SettingsState = {
@@ -50,9 +48,7 @@ function SettingsState.new(): SettingsState
 	self._camera = {
 		Distance = CameraConfig.Distance,
 		Sensitivity = CameraConfig.Sensitivity,
-		AimSensitivity = CameraConfig.AimSensitivity,
 		TouchSensitivity = CameraConfig.TouchSensitivity,
-		AimTouchSensitivity = CameraConfig.AimTouchSensitivity,
 	}
 	self._visual = {
 		MotionBlur = 8,
@@ -65,9 +61,7 @@ function SettingsState:GetCamera(): CameraSettings
 	return {
 		Distance = selfImpl._camera.Distance,
 		Sensitivity = selfImpl._camera.Sensitivity,
-		AimSensitivity = selfImpl._camera.AimSensitivity,
 		TouchSensitivity = selfImpl._camera.TouchSensitivity,
-		AimTouchSensitivity = selfImpl._camera.AimTouchSensitivity,
 	}
 end
 

@@ -36,6 +36,7 @@ type ThirdPersonControllerImpl = ThirdPersonController & {
 	_camera: ThirdPersonCameraType,
 	_movement: ThirdPersonMovementType,
 	_settings: SettingsStateType,
+	_prefsController: any?,
 
 	_player: Player?,
 	_boundCharacter: Model?,
@@ -44,6 +45,7 @@ type ThirdPersonControllerImpl = ThirdPersonController & {
 	_getLocalPlayer: (self: ThirdPersonControllerImpl) -> Player?,
 	_waitForCharacterReady: (self: ThirdPersonControllerImpl, character: Model, timeoutSec: number) -> boolean,
 	_applySettings: (self: ThirdPersonControllerImpl) -> (),
+	_applyPreferences: (self: ThirdPersonControllerImpl, prefs: any) -> (),
 	_bindCharacterAsync: (self: ThirdPersonControllerImpl, character: Model) -> (),
 	_bindCharacter: (self: ThirdPersonControllerImpl, character: Model) -> (),
 	_unbindCharacter: (self: ThirdPersonControllerImpl) -> (),
@@ -116,6 +118,19 @@ function ThirdPersonController:_applySettings()
 	end
 end
 
+function ThirdPersonController:_applyPreferences(prefs: any)
+	local selfImpl = self :: ThirdPersonControllerImpl
+	if not prefs or not prefs.Camera then
+		return
+	end
+	local cameraPrefs = prefs.Camera
+	selfImpl._camera:ApplyPreferences({
+		Sensitivity = cameraPrefs.Sensitivity,
+		InvertY = cameraPrefs.InvertY,
+		Fov = cameraPrefs.Fov,
+	})
+end
+
 function ThirdPersonController:KnitInit()
 	local selfImpl = self :: ThirdPersonControllerImpl
 	selfImpl._name = "ThirdPersonController"
@@ -126,6 +141,7 @@ function ThirdPersonController:KnitInit()
 	selfImpl._camera = ThirdPersonCamera.new(selfImpl._metrics)
 	selfImpl._movement = ThirdPersonMovement.new(selfImpl._metrics)
 	selfImpl._settings = SettingsState
+	selfImpl._prefsController = nil
 
 	selfImpl._player = nil
 	selfImpl._boundCharacter = nil
@@ -148,6 +164,17 @@ function ThirdPersonController:KnitStart()
 			selfImpl:_applySettings()
 		end
 	end), "Disconnect")
+
+	local okPrefs, prefsController = pcall(function()
+		return Knit.GetController("PreferencesController")
+	end)
+	if okPrefs and prefsController then
+		selfImpl._prefsController = prefsController
+		selfImpl:_applyPreferences(prefsController:GetPreferences())
+		selfImpl._janitor:Add(prefsController.Changed:Connect(function(prefs)
+			selfImpl:_applyPreferences(prefs)
+		end), "Disconnect")
+	end
 
 	local player = selfImpl:_getLocalPlayer()
 	selfImpl._player = player

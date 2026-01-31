@@ -1,5 +1,4 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Lighting = game:GetService("Lighting")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
@@ -14,82 +13,19 @@ local CameraConfig = require(Shared:WaitForChild("Config"):WaitForChild("CameraC
 local Client = script.Parent :: Folder
 local ClientRoot = Client.Parent :: Folder
 local Settings = require(ClientRoot.Settings.SettingsState :: ModuleScript)
+local CameraMotionBlur = require(ClientRoot.VFX.CameraMotionBlur :: ModuleScript)
 
 local VFXController = Knit.CreateController({
 	Name = "VFXController",
 })
 
-local function expAlpha(speed: number, dt: number): number
-	if speed <= 0 then
-		return 1
-	end
-	return 1 - math.exp(-speed * dt)
-end
-
-local function angleDelta(current: number, target: number): number
-	return math.atan2(math.sin(target - current), math.cos(target - current))
-end
-
-local function getQualityLevel(): Enum.QualityLevel?
-	local ok, settings = pcall(function()
-		local userSettings = UserSettings()
-		if userSettings.GetService then
-			return userSettings:GetService("UserGameSettings")
-		end
-		return userSettings.GameSettings
-	end)
-	if ok and settings then
-		local level = settings.SavedQualityLevel or settings.GraphicsQualityLevel
-		return level
-	end
-	return nil
-end
-
-local function isQualityBelowCutoff(level: Enum.QualityLevel?, cutoff: Enum.QualityLevel?): boolean
-	if not level or not cutoff then
-		return false
-	end
-	if level == Enum.QualityLevel.Automatic then
-		return false
-	end
-	return level.Value <= cutoff.Value
-end
-
-function VFXController:_attachCamera(camera: Camera?)
-	if self._camera == camera then
-		return
-	end
-
-	self._camera = camera
-	self._lastCFrame = nil
-	self._lastYaw = nil
-	self._lastPitch = nil
-
-	if not camera then
-		self._blur = nil
-		return
-	end
-
-	local blur = camera:FindFirstChild("MotionBlur") or Lighting:FindFirstChild("MotionBlur")
-	if blur and blur:IsA("BlurEffect") then
-		self._blur = blur
-	else
-		self._blur = Instance.new("BlurEffect")
-		self._blur.Name = "MotionBlur"
-	end
-	self._blur.Parent = camera
-end
-
 function VFXController:KnitInit()
 	self._janitor = Janitor.new()
-	self._blur = nil
-	self._camera = nil
-	self._lastCFrame = nil
-	self._lastYaw = nil
-	self._lastPitch = nil
-	self._currentBlur = 0
+	self._motionBlur = CameraMotionBlur.new(CameraConfig.MotionBlur)
 	self._motionBlurMax = 0
-	self:_apply(Settings:GetVisual())
+	self._showVfx = true
+	self._prefsController = nil
+	self:_applyVisual(Settings:GetVisual())
 end
 
 function VFXController:KnitStart()
@@ -100,80 +36,53 @@ function VFXController:KnitStart()
 
 	self._janitor:Add(Settings.Changed:Connect(function(category)
 		if category == "Visual" then
-			self:_apply(Settings:GetVisual())
+			self:_applyVisual(Settings:GetVisual())
 		end
 	end), "Disconnect")
 
+	local ok, prefsController = pcall(function()
+		return Knit.GetController("PreferencesController")
+	end)
+	if ok and prefsController then
+		self._prefsController = prefsController
+		self:_applyPrefs(prefsController:GetPreferences())
+		self._janitor:Add(prefsController.Changed:Connect(function(prefs)
+			self:_applyPrefs(prefs)
+		end), "Disconnect")
+	end
+
 	self._janitor:Add(RunService.RenderStepped:Connect(function(dt)
-		self:_updateBlur(dt)
+		self._motionBlur:Update(dt)
 	end), "Disconnect")
 end
 
-function VFXController:_apply(visual)
-	self._motionBlurMax = math.clamp(visual.MotionBlur or 0, SettingsConfig.Visual.MotionBlur.Min, SettingsConfig.Visual.MotionBlur.Max)
+function VFXController:_attachCamera(camera: Camera?)
+	self._motionBlur:AttachCamera(camera)
 end
 
-function VFXController:_updateBlur(dt: number)
-	if not self._blur then
-		return
-	end
+function VFXController:_applyVisual(visual)
+	self._motionBlurMax = math.clamp(
+		visual.MotionBlur or 0,
+		SettingsConfig.Visual.MotionBlur.Min,
+		SettingsConfig.Visual.MotionBlur.Max
+	)
+	self:_refreshBlurEnabled()
+end
 
-	local camera = self._camera or Workspace.CurrentCamera
-	if not camera then
-		self._blur.Size = 0
-		return
-	end
-
-	local config = CameraConfig.MotionBlur
-	if not config.Enabled or self._motionBlurMax <= 0 then
-		self._blur.Size = 0
-		self._currentBlur = 0
-		self._lastCFrame = camera.CFrame
-		return
-	end
-
-	local level = getQualityLevel()
-	if isQualityBelowCutoff(level, config.QualityLevelCutoff) then
-		self._blur.Size = 0
-		self._currentBlur = 0
-		self._lastCFrame = camera.CFrame
-		return
-	end
-
-	if dt <= 0 then
-		return
-	end
-
-	local currentCFrame = camera.CFrame
-	local target = 0
-
-	if self._lastCFrame then
-		local deltaPos = currentCFrame.Position - self._lastCFrame.Position
-		local linearSpeed = deltaPos.Magnitude / dt
-
-		local pitch, yaw, _ = currentCFrame:ToOrientation()
-		local lastYaw = self._lastYaw or yaw
-		local lastPitch = self._lastPitch or pitch
-		local yawRate = math.abs(angleDelta(lastYaw, yaw)) / dt
-		local pitchRate = math.abs(angleDelta(lastPitch, pitch)) / dt
-		local rotSpeed = yawRate + pitchRate
-
-		local maxAllowed = math.min(self._motionBlurMax, config.MaxSize)
-		target = (linearSpeed * config.LinearVelocityScale) + (rotSpeed * config.RotVelocityScale)
-		target = math.clamp(target, config.MinSize, maxAllowed)
-
-		self._lastYaw = yaw
-		self._lastPitch = pitch
+function VFXController:_applyPrefs(prefs)
+	local display = prefs and prefs.Display or nil
+	if display and display.ShowVfx ~= nil then
+		self._showVfx = display.ShowVfx == true
 	else
-		local pitch, yaw, _ = currentCFrame:ToOrientation()
-		self._lastYaw = yaw
-		self._lastPitch = pitch
+		self._showVfx = true
 	end
+	self:_refreshBlurEnabled()
+end
 
-	local alpha = expAlpha(config.SmoothingSpeed, dt)
-	self._currentBlur = self._currentBlur + (target - self._currentBlur) * alpha
-	self._blur.Size = self._currentBlur
-	self._lastCFrame = currentCFrame
+function VFXController:_refreshBlurEnabled()
+	local enabled = self._showVfx and self._motionBlurMax > 0
+	self._motionBlur:SetEnabled(enabled)
+	self._motionBlur:SetMaxSize(self._motionBlurMax)
 end
 
 return VFXController

@@ -59,6 +59,11 @@ type ThirdPersonCameraImpl = ThirdPersonCamera & {
 	_currentDistance: number,
 	_targetFov: number,
 	_currentFov: number,
+	_prefSensitivity: number,
+	_hasPrefSensitivity: boolean,
+	_prefInvertY: boolean,
+	_prefFov: number,
+	_settingsSensitivityScale: number,
 
 	_lastRayHit: boolean,
 	_lastCFrame: CFrame?,
@@ -163,6 +168,11 @@ function ThirdPersonCamera.new(metrics: Metrics): ThirdPersonCameraImpl
 		_currentDistance = CameraConfig.Distance,
 		_targetFov = math.clamp(CameraConfig.Fov, CameraConfig.MinFov, CameraConfig.MaxFov),
 		_currentFov = math.clamp(CameraConfig.Fov, CameraConfig.MinFov, CameraConfig.MaxFov),
+		_prefSensitivity = CameraConfig.Sensitivity,
+		_hasPrefSensitivity = false,
+		_prefInvertY = false,
+		_prefFov = math.clamp(CameraConfig.Fov, CameraConfig.MinFov, CameraConfig.MaxFov),
+		_settingsSensitivityScale = 1,
 
 		_lastRayHit = false,
 		_lastCFrame = nil,
@@ -294,12 +304,12 @@ function ThirdPersonCamera:Start()
 		end
 
 		-- Rotation input:
-		-- Mouse rotates ONLY while RMB free-look is held.
+		-- Mouse rotates ONLY while RMB free-look is held (handled in RenderStep to avoid jitter).
 		-- Touch drag rotates (typical mobile), UI blocks via gameProcessed.
-		if not isMouse and not isTouch then
+		if isMouse then
 			return
 		end
-		if isMouse and not selfImpl._freeLook then
+		if not isTouch then
 			return
 		end
 
@@ -311,7 +321,7 @@ function ThirdPersonCamera:Start()
 			maxDelta = selfImpl._config.MaxTouchDelta
 			deadzone = selfImpl._config.TouchDeadzone
 		else
-			sensitivity = selfImpl._settings.Sensitivity
+			sensitivity = selfImpl._prefSensitivity * selfImpl._settingsSensitivityScale * selfImpl._config.FreeLookSensitivityMultiplier
 			maxDelta = selfImpl._config.MaxMouseDelta
 			deadzone = selfImpl._config.MouseDeadzone
 		end
@@ -324,8 +334,9 @@ function ThirdPersonCamera:Start()
 			return
 		end
 
+		local invert = if selfImpl._prefInvertY then -1 else 1
 		selfImpl._yawTarget -= delta.X * sensitivity
-		selfImpl._pitchTarget -= delta.Y * sensitivity
+		selfImpl._pitchTarget -= delta.Y * sensitivity * invert
 		selfImpl._pitchTarget = math.clamp(selfImpl._pitchTarget, selfImpl._config.PitchMin, selfImpl._config.PitchMax)
 	end), "Disconnect")
 
@@ -449,7 +460,7 @@ function ThirdPersonCamera:BindCharacter(character: Model?)
 
 	selfImpl._targetDistance = math.clamp(selfImpl._settings.Distance, selfImpl._config.MinDistance, selfImpl._config.MaxDistance)
 	selfImpl._currentDistance = selfImpl._targetDistance
-	selfImpl._targetFov = math.clamp(selfImpl._config.Fov, selfImpl._config.MinFov, selfImpl._config.MaxFov)
+	selfImpl._targetFov = math.clamp(selfImpl._prefFov, selfImpl._config.MinFov, selfImpl._config.MaxFov)
 	selfImpl._currentFov = selfImpl._targetFov
 	selfImpl._shoulderSide = selfImpl._config.ShoulderSide
 
@@ -466,6 +477,28 @@ function ThirdPersonCamera:ApplySettings(settings: CameraSettings)
 	local selfImpl = self :: ThirdPersonCameraImpl
 	selfImpl._settings = settings
 	selfImpl._targetDistance = math.clamp(settings.Distance, selfImpl._config.MinDistance, selfImpl._config.MaxDistance)
+	if not selfImpl._hasPrefSensitivity then
+		selfImpl._prefSensitivity = math.clamp(settings.Sensitivity, 0.0005, 0.02)
+	end
+	if selfImpl._config.Sensitivity > 0 then
+		local scale = settings.Sensitivity / selfImpl._config.Sensitivity
+		selfImpl._settingsSensitivityScale = math.clamp(scale, 0.5, 2.0)
+	end
+end
+
+function ThirdPersonCamera:ApplyPreferences(preferences: { Sensitivity: number?, InvertY: boolean?, Fov: number? })
+	local selfImpl = self :: ThirdPersonCameraImpl
+	if preferences.Sensitivity then
+		selfImpl._prefSensitivity = math.clamp(preferences.Sensitivity, 0.0005, 0.02)
+		selfImpl._hasPrefSensitivity = true
+	end
+	if preferences.InvertY ~= nil then
+		selfImpl._prefInvertY = preferences.InvertY
+	end
+	if preferences.Fov then
+		selfImpl._prefFov = math.clamp(preferences.Fov, selfImpl._config.MinFov, selfImpl._config.MaxFov)
+		selfImpl._targetFov = selfImpl._prefFov
+	end
 end
 
 function ThirdPersonCamera:_getCameraBasis(): CFrame
@@ -511,10 +544,27 @@ function ThirdPersonCamera:_update(dt: number)
 		end
 
 		local sensitivity = selfImpl._config.GamepadSensitivity
+		local invert = if selfImpl._prefInvertY then -1 else 1
 		selfImpl._yawTarget -= gamepadLook.X * sensitivity * dt
-		selfImpl._pitchTarget -= gamepadLook.Y * sensitivity * dt
+		selfImpl._pitchTarget -= gamepadLook.Y * sensitivity * dt * invert
 		selfImpl._pitchTarget = math.clamp(selfImpl._pitchTarget, selfImpl._config.PitchMin, selfImpl._config.PitchMax)
 		hasGamepadLook = gamepadLook.Magnitude > 0
+	end
+
+	-- Mouse free-look (RMB): use GetMouseDelta per-frame to avoid jitter.
+	if selfImpl._freeLook and UserInputService.MouseEnabled then
+		local delta = UserInputService:GetMouseDelta()
+		local maxDelta = selfImpl._config.MaxMouseDelta
+		local deadzone = selfImpl._config.MouseDeadzone
+		local sensitivity = selfImpl._prefSensitivity * selfImpl._settingsSensitivityScale * selfImpl._config.FreeLookSensitivityMultiplier
+		delta = clampDeltaVec2(delta, maxDelta)
+		delta = applyDeadzone(delta, deadzone)
+		if delta.X ~= 0 or delta.Y ~= 0 then
+			local invert = if selfImpl._prefInvertY then -1 else 1
+			selfImpl._yawTarget -= delta.X * sensitivity
+			selfImpl._pitchTarget -= delta.Y * sensitivity * invert
+			selfImpl._pitchTarget = math.clamp(selfImpl._pitchTarget, selfImpl._config.PitchMin, selfImpl._config.PitchMax)
+		end
 	end
 
 	if (preferGamepad or UserInputService.GamepadEnabled) and math.abs(selfImpl._gamepadZoomAxis) > 0.01 then
@@ -533,45 +583,56 @@ function ThirdPersonCamera:_update(dt: number)
 		local humanoid = character.humanoid
 		local moveDir = humanoid.MoveDirection
 		local flatMove = Vector3.new(moveDir.X, 0, moveDir.Z)
+		local camLook = selfImpl:_getCameraBasis().LookVector
+		local camForward = Vector3.new(camLook.X, 0, camLook.Z)
 
 		local _, rootYaw, _ = root.CFrame:ToOrientation()
 		local rootForward = Vector3.new(root.CFrame.LookVector.X, 0, root.CFrame.LookVector.Z)
 		local isMoving = flatMove.Magnitude > selfImpl._config.AutoAlignMoveThreshold
-
-		local desiredYaw = rootYaw
-		local useMoveAlign = false
-
-		if isMoving then
-			-- Detect backward movement relative to character facing.
-			local dot = 0
-			if rootForward.Magnitude > 1e-4 then
-				dot = flatMove.Unit:Dot(rootForward.Unit)
+		local movingBackToCamera = false
+		if isMoving and camForward.Magnitude > 1e-4 then
+			local dotCam = flatMove.Unit:Dot(camForward.Unit)
+			if dotCam < selfImpl._config.BackwardCameraDotThreshold then
+				movingBackToCamera = true
 			end
-
-			if dot > selfImpl._config.BackwardDotThreshold then
-				-- Not moving backward -> align to movement direction (common AAA feel)
-				desiredYaw = math.atan2(-flatMove.X, -flatMove.Z)
-				useMoveAlign = true
-			else
-				-- Moving backward -> keep aligning gently to root (NOT movement)
-				desiredYaw = rootYaw
-				useMoveAlign = false
-			end
-		else
-			desiredYaw = rootYaw
 		end
 
-		-- First: smooth toward desiredYaw
-		local speed = if useMoveAlign then selfImpl._config.AutoAlignSpeed else selfImpl._config.AutoAlignIdleSpeed
-		local a = expAlpha(speed, dt)
-		local nextYawTarget = lerpAngle(selfImpl._yawTarget, desiredYaw, a)
+		if not movingBackToCamera then
+			local desiredYaw = rootYaw
+			local useMoveAlign = false
 
-		-- Second: hard rate limit (deg/sec) to prevent fast spin
-		local maxRateRad = math.rad(selfImpl._config.AutoAlignMaxYawRateDeg)
-		local d = angleDelta(selfImpl._yawTarget, nextYawTarget)
-		local maxStep = maxRateRad * dt
-		d = math.clamp(d, -maxStep, maxStep)
-		selfImpl._yawTarget = selfImpl._yawTarget + d
+			if isMoving then
+				-- Detect backward movement relative to character facing.
+				local dot = 0
+				if rootForward.Magnitude > 1e-4 then
+					dot = flatMove.Unit:Dot(rootForward.Unit)
+				end
+
+				if dot > selfImpl._config.BackwardDotThreshold then
+					-- Not moving backward -> align to movement direction (common AAA feel)
+					desiredYaw = math.atan2(-flatMove.X, -flatMove.Z)
+					useMoveAlign = true
+				else
+					-- Moving backward -> keep aligning gently to root (NOT movement)
+					desiredYaw = rootYaw
+					useMoveAlign = false
+				end
+			else
+				desiredYaw = rootYaw
+			end
+
+			-- First: smooth toward desiredYaw
+			local speed = if useMoveAlign then selfImpl._config.AutoAlignSpeed else selfImpl._config.AutoAlignIdleSpeed
+			local a = expAlpha(speed, dt)
+			local nextYawTarget = lerpAngle(selfImpl._yawTarget, desiredYaw, a)
+
+			-- Second: hard rate limit (deg/sec) to prevent fast spin
+			local maxRateRad = math.rad(selfImpl._config.AutoAlignMaxYawRateDeg)
+			local d = angleDelta(selfImpl._yawTarget, nextYawTarget)
+			local maxStep = maxRateRad * dt
+			d = math.clamp(d, -maxStep, maxStep)
+			selfImpl._yawTarget = selfImpl._yawTarget + d
+		end
 	end
 
 	-- Smooth yaw/pitch toward targets (dt-stable)

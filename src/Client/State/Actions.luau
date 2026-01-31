@@ -5,10 +5,11 @@ local Rodux = require(Packages:WaitForChild("Rodux") :: ModuleScript)
 
 local Actions = {}
 
-Actions.SetStamina = Rodux.makeActionCreator("SetStamina", function(current, max)
+Actions.SetStamina = Rodux.makeActionCreator("SetStamina", function(current, max, state)
 	return {
 		current = current,
 		max = max,
+		state = state,
 	}
 end)
 

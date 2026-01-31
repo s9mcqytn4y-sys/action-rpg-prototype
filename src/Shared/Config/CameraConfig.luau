@@ -4,9 +4,9 @@
 
 local CameraConfig = {
 	-- Distance
-	Distance = 9.0,
+	Distance = 8.5,
 	MinDistance = 3.0,
-	MaxDistance = 16.0,
+	MaxDistance = 14.0,
 
 	-- FOV
 	Fov = 70,
@@ -32,34 +32,36 @@ local CameraConfig = {
 	PitchMax = math.rad(25),
 
 	-- Smoothing (dt-stable)
-	RotationSmoothingSpeed = 12.0, -- a bit softer than before (comfort)
-	CFrameSmoothingSpeed = 16.0,
-	DistanceSmoothingSpeed = 14.0,
+	RotationSmoothingSpeed = 8.0, -- softer for comfort
+	CFrameSmoothingSpeed = 12.0,
+	DistanceSmoothingSpeed = 12.0,
 
 	-- Auto alignment (comfort tuned)
-	AutoAlignMoveThreshold = 0.20,
-	AutoAlignSpeed = 4.5,     -- slower: reduces nausea
-	AutoAlignIdleSpeed = 2.5, -- gentle recenter
-	AutoAlignMaxYawRateDeg = 180, -- hard safety cap (deg/sec)
+	AutoAlignMoveThreshold = 0.25,
+	AutoAlignSpeed = 2.6,     -- slower: reduces nausea
+	AutoAlignIdleSpeed = 1.4, -- gentle recenter
+	AutoAlignMaxYawRateDeg = 75, -- safety cap (deg/sec)
 
 	-- Backward movement handling:
 	-- If moving opposite to character forward (dot < threshold), DON'T align to movement.
-	BackwardDotThreshold = -0.25,
+	BackwardDotThreshold = 0.1,
+	-- If movement is opposite camera forward, suppress auto-align to avoid spin.
+	BackwardCameraDotThreshold = 0.15,
 
 	-- Collision
 	CollisionBuffer = 0.25,
 
 	-- Input clamp (prevents spikes)
-	MaxMouseDelta = 60,
-	MaxTouchDelta = 80,
+	MaxMouseDelta = 28,
+	MaxTouchDelta = 70,
 
 	-- Input deadzone (fix micro-jitter)
 	MouseDeadzone = 0.25, -- px (ignore tiny deltas)
 	TouchDeadzone = 0.5,  -- px
 
 	-- Sensitivity
-	Sensitivity = 0.0026,
-	TouchSensitivity = 0.004,
+	Sensitivity = 0.0018,
+	TouchSensitivity = 0.0035,
 	GamepadSensitivity = 3.2, -- radians/sec at full deflection
 	GamepadDeadzone = 0.12,
 	GamepadResponseExponent = 1.4,
@@ -70,6 +72,7 @@ local CameraConfig = {
 	-- Comfort mouse behavior while freelook:
 	-- LockCurrentPosition keeps cursor stable and prevents edge clamping issues.
 	FreeLookMouseBehavior = Enum.MouseBehavior.LockCurrentPosition,
+	FreeLookSensitivityMultiplier = 0.8,
 
 	-- Shoulder swap (optional)
 	ShoulderSwapKey = Enum.KeyCode.Q,
@@ -82,11 +85,11 @@ local CameraConfig = {
 	MotionBlur = {
 		Enabled = true,
 		MinSize = 0,
-		MaxSize = 14,
-		LinearVelocityScale = 0.012, -- studs/sec -> blur size
-		RotVelocityScale = 0.35, -- rad/sec -> blur size
+		MaxSize = 12,
+		LinearVelocityScale = 0.015, -- studs/sec -> blur size
+		RotVelocityScale = 0.45, -- rad/sec -> blur size
 		SmoothingSpeed = 10.0,
-		QualityLevelCutoff = Enum.QualityLevel.Level04, -- disable if <= this
+		QualityLevelCutoff = Enum.QualityLevel.Level02, -- disable if <= this
 	},
 }
 

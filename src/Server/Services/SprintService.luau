@@ -14,6 +14,13 @@ local SprintService = Knit.CreateService({
 	Client = {},
 })
 
+local function expAlpha(speed: number, dt: number): number
+	if speed <= 0 then
+		return 1
+	end
+	return 1 - math.exp(-speed * dt)
+end
+
 function SprintService:KnitInit()
 	self._janitors = {}
 	self._state = {}
@@ -45,6 +52,7 @@ function SprintService:_initPlayer(player: Player)
 	self._state[player] = {
 		wantsSprint = false,
 		baseSpeed = nil,
+		currentSpeed = nil,
 		humanoid = nil,
 		root = nil,
 	}
@@ -87,6 +95,7 @@ function SprintService:_bindCharacter(player: Player, character: Model)
 	data.humanoid = humanoid
 	data.root = root
 	data.baseSpeed = humanoid.WalkSpeed
+	data.currentSpeed = humanoid.WalkSpeed
 end
 
 function SprintService:_unbindCharacter(player: Player)
@@ -96,6 +105,7 @@ function SprintService:_unbindCharacter(player: Player)
 	end
 	data.humanoid = nil
 	data.root = nil
+	data.currentSpeed = nil
 end
 
 function SprintService:_requestSprint(player: Player, wantsSprint: boolean)
@@ -115,11 +125,10 @@ function SprintService:_updatePlayer(player: Player, dt: number)
 
 	local humanoid = data.humanoid
 	local baseSpeed = data.baseSpeed or humanoid.WalkSpeed
-	local current = self._staminaService:GetStamina(player)
 
 	-- Sprint only when requested, stamina sufficient, and actually moving.
 	local moving = humanoid.MoveDirection.Magnitude > GameConfig.Sprint.MinMoveThreshold
-	local canStart = current >= GameConfig.Sprint.MinStaminaToStart
+	local canStart = self._staminaService:CanSprint(player)
 	local isSprinting = data.wantsSprint and moving and canStart
 
 	local targetSpeed = baseSpeed
@@ -127,19 +136,17 @@ function SprintService:_updatePlayer(player: Player, dt: number)
 		targetSpeed = baseSpeed * GameConfig.Sprint.SpeedMultiplier
 	end
 
-	-- Server authority: override WalkSpeed every tick.
-	if humanoid.WalkSpeed ~= targetSpeed then
-		humanoid.WalkSpeed = targetSpeed
+	local current = data.currentSpeed or humanoid.WalkSpeed
+	local alpha = expAlpha(GameConfig.Sprint.SpeedBlendSpeed, dt)
+	current = current + (targetSpeed - current) * alpha
+	data.currentSpeed = current
+
+	-- Server authority: smooth WalkSpeed for comfort.
+	if math.abs(humanoid.WalkSpeed - current) > 0.01 then
+		humanoid.WalkSpeed = current
 	end
 
 	self._staminaService:SetSprinting(player, isSprinting)
-
-	if isSprinting then
-		local drain = GameConfig.Sprint.DrainPerSecond * dt
-		if drain > 0 then
-			self._staminaService:SetStamina(player, math.max(0, current - drain))
-		end
-	end
 end
 
 return SprintService

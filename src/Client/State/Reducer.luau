@@ -8,6 +8,7 @@ local initialState = {
 	Stamina = {
 		current = 0,
 		max = 100,
+		state = "Idle",
 	},
 }
 
@@ -17,6 +18,7 @@ local reducer = Rodux.createReducer(initialState, {
 			Stamina = {
 				current = action.current,
 				max = action.max,
+				state = action.state or state.Stamina.state,
 			},
 		})
 	end,

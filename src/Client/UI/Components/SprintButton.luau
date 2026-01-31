@@ -38,10 +38,11 @@ function SprintButton:render()
 	return Roact.createElement("TextButton", {
 		AnchorPoint = Vector2.new(1, 1),
 		Position = UDim2.new(1, -24, 1, -32),
-		Size = UDim2.new(0, 84, 0, 48),
+		Size = UDim2.new(0, 88, 0, 50),
 		Text = label,
 		TextColor3 = UITheme.Colors.TextPrimary,
 		BackgroundColor3 = if self.state.isSprinting then UITheme.Colors.Accent else UITheme.Colors.PanelAlt,
+		BackgroundTransparency = self.state.isSprinting and 0.04 or 0.12,
 		AutoButtonColor = true,
 		Font = UITheme.Typography.Title,
 		TextScaled = true,
@@ -56,6 +57,13 @@ function SprintButton:render()
 			Color = UITheme.Colors.Stroke,
 			Transparency = 0.4,
 			Thickness = 1,
+		}),
+		Highlight = Roact.createElement("UIGradient", {
+			Rotation = 90,
+			Transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 0.75),
+				NumberSequenceKeypoint.new(1, 1),
+			}),
 		}),
 	})
 end

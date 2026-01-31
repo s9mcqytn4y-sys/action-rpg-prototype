@@ -6,6 +6,7 @@ local TableUtil = require(Packages:WaitForChild("TableUtil") :: ModuleScript)
 local Shared = ReplicatedStorage:WaitForChild("Shared") :: Folder
 local Config = Shared:WaitForChild("Config") :: Folder
 local GameConfig = require(Config:WaitForChild("GameConfig") :: ModuleScript)
+local PreferencesSchema = require(Config:WaitForChild("PreferencesSchema") :: ModuleScript)
 
 local PlayerDataStore = {}
 
@@ -16,6 +17,7 @@ PlayerDataStore.Template = {
 	Stamina = {
 		Current = GameConfig.Stamina.Max,
 	},
+	Preferences = TableUtil.Copy(PreferencesSchema.Defaults, true),
 }
 
 function PlayerDataStore:CloneTemplate()

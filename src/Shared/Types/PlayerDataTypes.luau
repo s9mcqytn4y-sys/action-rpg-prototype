@@ -7,6 +7,7 @@ export type PlayerData = {
 	XP: number,
 	Gold: number,
 	Stamina: StaminaData,
+	Preferences: any,
 }
 
 return nil
