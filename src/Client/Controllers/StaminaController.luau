@@ -57,6 +57,18 @@ function StaminaController:KnitStart()
 		store:dispatch(Actions.SetStamina(current, max))
 		self.StaminaChanged:Fire(current, max)
 	end), "Disconnect")
+
+	local ok, current, max = pcall(function()
+		return staminaService:GetStamina()
+	end)
+	if ok and type(current) == "number" and type(max) == "number" then
+		self._staminaVal:set({
+			current = current,
+			max = max,
+		})
+		store:dispatch(Actions.SetStamina(current, max))
+		self.StaminaChanged:Fire(current, max)
+	end
 end
 
 function StaminaController:GetStamina()

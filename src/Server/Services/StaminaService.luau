@@ -18,9 +18,14 @@ local StaminaService = Knit.CreateService({
 	},
 })
 
+function StaminaService.Client:GetStamina(player)
+	return self.Server:GetStamina(player)
+end
+
 function StaminaService:KnitInit()
 	self._stamina = {}
 	self._janitors = {}
+	self._isSprinting = {}
 	self.StaminaChanged = Signal.new()
 end
 
@@ -52,6 +57,7 @@ function StaminaService:_initPlayer(player, data)
 	end
 
 	self._stamina[player] = current
+	self._isSprinting[player] = false
 	self:_fireStamina(player, current, max)
 
 	local playerDataService = self._playerDataService
@@ -77,9 +83,11 @@ function StaminaService:_initPlayer(player, data)
 		end
 
 		if value < max then
-			local newValue = math.min(max, value + (GameConfig.Stamina.RegenPerSecond * dt))
-			if newValue ~= value then
-				self:_setStaminaInternal(player, newValue, max)
+			if not self._isSprinting[player] then
+				local newValue = math.min(max, value + (GameConfig.Stamina.RegenPerSecond * dt))
+				if newValue ~= value then
+					self:_setStaminaInternal(player, newValue, max)
+				end
 			end
 		end
 	end), "Disconnect")
@@ -87,6 +95,7 @@ end
 
 function StaminaService:_cleanupPlayer(player)
 	self._stamina[player] = nil
+	self._isSprinting[player] = nil
 
 	local janitor = self._janitors[player]
 	if janitor then
@@ -123,6 +132,10 @@ end
 function StaminaService:SetStamina(player, value)
 	local max = GameConfig.Stamina.Max
 	self:_setStaminaInternal(player, value, max)
+end
+
+function StaminaService:SetSprinting(player, isSprinting: boolean)
+	self._isSprinting[player] = isSprinting
 end
 
 return StaminaService
