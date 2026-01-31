@@ -1,6 +1,5 @@
 {
   "name": "ActionRPGPrototype",
-  "emitLegacyScripts": false,
   "tree": {
     "$className": "DataModel",
 
