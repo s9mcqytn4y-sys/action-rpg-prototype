@@ -1,50 +1,38 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
-
 local Packages = ReplicatedStorage:WaitForChild("Packages") :: Folder
 local Roact = require(Packages:WaitForChild("Roact") :: ModuleScript)
 
 local Shared = ReplicatedStorage:WaitForChild("Shared") :: Folder
 local Theme = require(Shared:WaitForChild("Config"):WaitForChild("EndfieldTheme") :: ModuleScript)
+local TweenUtil = require(Shared:WaitForChild("Util"):WaitForChild("TweenUtil") :: ModuleScript)
 
 type Props = {
 	Enabled: boolean,
 	OnChanged: (enabled: boolean) -> (),
 
 	-- optional
-	Disabled: boolean
+	Disabled: boolean?,
 }
 
 local Toggle = Roact.Component:extend("Toggle")
 
 -- ====== Tuning ======
-local SIZE = UDim2.new(0, 56, 0, 26)
-local KNOB_SIZE = UDim2.new(0, 20, 0, 20)
-local KNOB_Y = 3
-local KNOB_X_ON = 30
-local KNOB_X_OFF = 3
+local WIDTH = 56
+local HEIGHT = 26
+local KNOB_SIZE_PX = 20
+local KNOB_PADDING = 3
+
+local SIZE = UDim2.new(0, WIDTH, 0, HEIGHT)
+local KNOB_SIZE = UDim2.new(0, KNOB_SIZE_PX, 0, KNOB_SIZE_PX)
+local KNOB_Y = KNOB_PADDING
+local KNOB_X_OFF = KNOB_PADDING
+local KNOB_X_ON = WIDTH - KNOB_SIZE_PX - KNOB_PADDING
 
 local TWEEN = TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 local TWEEN_PRESS = TweenInfo.new(0.10, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 
 local COLOR_KNOB = Color3.fromRGB(235, 240, 250)
 local COLOR_TRACK = Color3.fromRGB(24, 30, 40)
-
-local function safeTween(self, instance: Instance, info: TweenInfo, props)
-	if not instance then
-		return
-	end
-
-	self._tweens = self._tweens or {}
-	local old = self._tweens[instance]
-	if old then
-		old:Cancel()
-	end
-
-	local tw = TweenService:Create(instance, info, props)
-	self._tweens[instance] = tw
-	tw:Play()
-end
 
 local function knobX(enabled: boolean): number
 	return enabled and KNOB_X_ON or KNOB_X_OFF
@@ -67,21 +55,21 @@ function Toggle:_apply(enabled: boolean)
 	local track = self._trackRef:getValue()
 
 	local bgColor = enabled and Theme.Colors.Accent or Theme.Colors.PanelAlt
-	local bgTrans = enabled and 0.04 or 0.14
+	local bgTrans = enabled and 0.03 or 0.12
 
 	-- sedikit hidup pas enabled: track lebih jelas
-	local trackTrans = enabled and 0.32 or 0.6
+	local trackTrans = enabled and 0.28 or 0.55
 
-	safeTween(self, button, TWEEN, {
+	TweenUtil.play(self._tweens, button, TWEEN, {
 		BackgroundColor3 = bgColor,
 		BackgroundTransparency = bgTrans,
 	})
 
-	safeTween(self, knob, TWEEN, {
+	TweenUtil.play(self._tweens, knob, TWEEN, {
 		Position = UDim2.new(0, knobX(enabled), 0, KNOB_Y),
 	})
 
-	safeTween(self, track, TWEEN, {
+	TweenUtil.play(self._tweens, track, TWEEN, {
 		BackgroundTransparency = trackTrans,
 	})
 end
@@ -90,7 +78,7 @@ function Toggle:_setPressed(isPressed: boolean)
 	self._pressed = isPressed
 	local scale = self._knobScaleRef:getValue()
 	if scale then
-		safeTween(self, scale, TWEEN_PRESS, { Scale = isPressed and 0.92 or 1 })
+		TweenUtil.play(self._tweens, scale, TWEEN_PRESS, { Scale = isPressed and 0.92 or 1 })
 	end
 end
 
@@ -108,9 +96,7 @@ end
 
 function Toggle:willUnmount()
 	if self._tweens then
-		for _, tw in pairs(self._tweens) do
-			tw:Cancel()
-		end
+		TweenUtil.cancelAll(self._tweens)
 	end
 	self._tweens = {}
 end
@@ -130,7 +116,7 @@ function Toggle:render()
 		AutoButtonColor = not disabled,
 
 		BackgroundColor3 = enabled and Theme.Colors.Accent or Theme.Colors.PanelAlt,
-		BackgroundTransparency = enabled and 0.04 or 0.14,
+		BackgroundTransparency = enabled and 0.03 or 0.12,
 		BorderSizePixel = 0,
 
 		Selectable = true,
@@ -144,7 +130,6 @@ function Toggle:render()
 			props.OnChanged(not enabled)
 		end,
 
-		-- press feedback
 		[Roact.Event.MouseButton1Down] = function()
 			if disabled then
 				return
@@ -174,7 +159,6 @@ function Toggle:render()
 			Thickness = 1,
 		}),
 
-		-- subtle highlight biar keliatan premium
 		Highlight = Roact.createElement("UIGradient", {
 			Rotation = 90,
 			Transparency = NumberSequence.new({
@@ -186,7 +170,7 @@ function Toggle:render()
 		Track = Roact.createElement("Frame", {
 			Name = "Track",
 			BackgroundColor3 = COLOR_TRACK,
-			BackgroundTransparency = enabled and 0.32 or 0.6,
+			BackgroundTransparency = enabled and 0.28 or 0.55,
 			BorderSizePixel = 0,
 			Position = UDim2.new(0, 2, 0.5, -6),
 			Size = UDim2.new(1, -4, 0, 12),

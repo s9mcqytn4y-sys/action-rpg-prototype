@@ -1,12 +1,12 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
-
 local Packages = ReplicatedStorage:WaitForChild("Packages") :: Folder
 local Roact = require(Packages:WaitForChild("Roact") :: ModuleScript)
 local RoactRodux = require(Packages:WaitForChild("Roact-Rodux") :: ModuleScript)
 
 local Shared = ReplicatedStorage:WaitForChild("Shared") :: Folder
 local Theme = require(Shared:WaitForChild("Config"):WaitForChild("EndfieldTheme") :: ModuleScript)
+local TweenUtil = require(Shared:WaitForChild("Util"):WaitForChild("TweenUtil") :: ModuleScript)
 
 local StaminaBar = Roact.Component:extend("StaminaBar")
 
@@ -57,22 +57,6 @@ function StaminaBar:init()
 	self._pulseTween = nil :: Tween?
 end
 
-local function safePlay(self, instance: Instance?, info: TweenInfo, props)
-	if not instance then
-		return
-	end
-
-	-- cancel tween sebelumnya biar ga numpuk
-	local old = self._tweens[instance]
-	if old then
-		old:Cancel()
-	end
-
-	local tw = TweenService:Create(instance, info, props)
-	self._tweens[instance] = tw
-	tw:Play()
-end
-
 function StaminaBar:_updateVisual()
 	local stamina = self.props.stamina or {}
 	local current = stamina.current or 0
@@ -86,7 +70,7 @@ function StaminaBar:_updateVisual()
 	-- Show/hide container
 	if show ~= self._lastShow then
 		local container = self._containerRef:getValue()
-		safePlay(self, container, TWEEN_SHOW, {
+		TweenUtil.play(self._tweens, container, TWEEN_SHOW, {
 			GroupTransparency = (show and 0) or 1,
 		})
 		self._lastShow = show
@@ -95,7 +79,7 @@ function StaminaBar:_updateVisual()
 	-- Fill size
 	if ratio ~= self._lastRatio then
 		local fill = self._fillRef:getValue()
-		safePlay(self, fill, TWEEN_FILL, {
+		TweenUtil.play(self._tweens, fill, TWEEN_FILL, {
 			Size = UDim2.new(ratio, 0, 1, 0),
 		})
 		self._lastRatio = ratio
@@ -104,7 +88,7 @@ function StaminaBar:_updateVisual()
 	-- Exhausted badge fade
 	if low ~= (self._lastLow == true) then
 		local warningLabel = self._warningRef:getValue()
-		safePlay(self, warningLabel, TWEEN_TEXT, {
+		TweenUtil.play(self._tweens, warningLabel, TWEEN_TEXT, {
 			TextTransparency = (low and 0) or 1,
 			BackgroundTransparency = (low and 0.08) or 1,
 		})
@@ -121,7 +105,7 @@ function StaminaBar:_updateVisual()
 			or (low and COLOR_LOW)
 			or accent
 
-		safePlay(self, fill, TWEEN_COLOR, {
+		TweenUtil.play(self._tweens, fill, TWEEN_COLOR, {
 			BackgroundColor3 = targetColor,
 		})
 	end
@@ -171,9 +155,7 @@ function StaminaBar:didUpdate()
 end
 
 function StaminaBar:willUnmount()
-	for _, tw in pairs(self._tweens) do
-		tw:Cancel()
-	end
+	TweenUtil.cancelAll(self._tweens)
 	self._tweens = {}
 	if self._pulseTween then
 		self._pulseTween:Cancel()
@@ -193,8 +175,8 @@ function StaminaBar:render()
 	local maxInt = math.floor(max + 0.5)
 
 	-- lebih solid (tidak terlalu transparan)
-	local panelTransparency = 0.12
-	local trackTransparency = 0.08 -- lebih solid dari 0.2
+	local panelTransparency = 0.06
+	local trackTransparency = 0.12
 
 	return Roact.createElement("CanvasGroup", {
 		Name = "StaminaBar",
@@ -202,7 +184,7 @@ function StaminaBar:render()
 
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.new(0.5, 0, 1, -34),
-		Size = UDim2.new(0, 300, 0, 34),
+		Size = UDim2.new(0, 260, 0, 24),
 
 		BackgroundTransparency = 1,
 		[Roact.Ref] = self._containerRef,
@@ -221,24 +203,16 @@ function StaminaBar:render()
 
 			Stroke = Roact.createElement("UIStroke", {
 				Color = Theme.Colors.Border,
-				Transparency = 0.4,
+				Transparency = 0.55,
 				Thickness = 1,
 			}),
 
-			-- subtle highlight biar keliatan premium
-			TopHighlight = Roact.createElement("UIGradient", {
-				Rotation = 90,
-				Transparency = NumberSequence.new({
-					NumberSequenceKeypoint.new(0, 0.72),
-					NumberSequenceKeypoint.new(1, 1),
-				}),
-			}),
 
 			-- Track + Fill
 			Track = Roact.createElement("Frame", {
 				Name = "Track",
-				Size = UDim2.new(1, -94, 0, 9),
-				Position = UDim2.new(0, 34, 0.5, -4),
+				Size = UDim2.new(1, -52, 0, 6),
+				Position = UDim2.new(0, 12, 0.5, -3),
 
 				BackgroundColor3 = COLOR_TRACK,
 				BackgroundTransparency = trackTransparency,
@@ -275,43 +249,16 @@ function StaminaBar:render()
 				}),
 			}),
 
-			-- Icon
-			Icon = Roact.createElement("Frame", {
-				Name = "Icon",
-				Position = UDim2.new(0, 6, 0, 6),
-				Size = UDim2.new(0, 20, 0, 20),
-				BackgroundColor3 = Theme.Colors.AccentSoft,
-				BackgroundTransparency = 0.05,
-				BorderSizePixel = 0,
-			}, {
-				Corner = Roact.createElement("UICorner", {
-					CornerRadius = UDim.new(1, 0),
-				}),
-				Stroke = Roact.createElement("UIStroke", {
-					Color = Theme.Colors.Accent,
-					Transparency = 0.15,
-					Thickness = 1,
-				}),
-				Mark = Roact.createElement("TextLabel", {
-					BackgroundTransparency = 1,
-					Size = UDim2.fromScale(1, 1),
-					Text = "ST",
-					TextColor3 = Theme.Colors.Text,
-					TextSize = Theme.TypographySizes.Small,
-					Font = Theme.Typography.Mono,
-				}),
-			}),
-
 			-- Value Label
 			Label = Roact.createElement("TextLabel", {
 				Name = "Value",
 				BackgroundTransparency = 1,
-				Position = UDim2.new(1, -66, 0, 2),
-				Size = UDim2.new(0, 62, 1, 0),
+				Position = UDim2.new(1, -42, 0, 0),
+				Size = UDim2.new(0, 40, 1, 0),
 
 				Text = string.format("%d/%d", currentInt, maxInt),
 				TextColor3 = Theme.Colors.Text,
-				TextSize = Theme.TypographySizes.Small,
+				TextSize = Theme.TypographySizes.Mono,
 				Font = Theme.Typography.Body,
 				TextXAlignment = Enum.TextXAlignment.Right,
 			}),
@@ -320,8 +267,8 @@ function StaminaBar:render()
 			Low = Roact.createElement("TextLabel", {
 				Name = "Exhausted",
 				AnchorPoint = Vector2.new(0, 0.5),
-				Position = UDim2.new(0, 34, 0.5, -13),
-				Size = UDim2.new(0, 76, 0, 16),
+				Position = UDim2.new(0, 12, 0.5, -12),
+				Size = UDim2.new(0, 64, 0, 14),
 
 				BackgroundColor3 = Theme.Colors.HeaderBar,
 				BackgroundTransparency = 1,
@@ -372,7 +319,4 @@ local function mapStateToProps(state)
 	}
 end
 
--- NOTE:
--- Kalau di project kamu connect({ "Stamina" }, mapStateToProps) memang pattern internal,
--- biarkan seperti aslinya. Kalau tidak perlu, bisa cukup connect(mapStateToProps).
 return RoactRodux.connect({ "Stamina" }, mapStateToProps)(StaminaBar)

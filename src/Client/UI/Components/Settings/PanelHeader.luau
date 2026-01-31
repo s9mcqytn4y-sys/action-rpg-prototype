@@ -5,7 +5,6 @@ local Roact = require(Packages:WaitForChild("Roact") :: ModuleScript)
 
 local Shared = ReplicatedStorage:WaitForChild("Shared") :: Folder
 local Theme = require(Shared:WaitForChild("Config"):WaitForChild("EndfieldTheme") :: ModuleScript)
-local AssetIds = require(Shared:WaitForChild("Config"):WaitForChild("AssetIds") :: ModuleScript)
 
 type Props = {
 	Title: string,
@@ -112,10 +111,12 @@ function PanelHeader:render()
 					Thickness = 1,
 				}),
 			}),
-			Close = Roact.createElement("ImageButton", {
+			Close = Roact.createElement("TextButton", {
 				Size = UDim2.new(0, 28, 0, 24),
-				Image = AssetIds.Icons.Close,
-				ImageColor3 = Theme.Colors.Text,
+				Text = "X",
+				TextColor3 = Theme.Colors.Text,
+				TextSize = Theme.TypographySizes.Small,
+				Font = Theme.Typography.Title,
 				BackgroundColor3 = Theme.Colors.PanelAlt,
 				BackgroundTransparency = 0.04,
 				AutoButtonColor = true,

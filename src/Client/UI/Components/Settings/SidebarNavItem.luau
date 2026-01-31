@@ -41,7 +41,7 @@ function SidebarNavItem:render()
 		}),
 		Stroke = Roact.createElement("UIStroke", {
 			Color = Theme.Colors.Border,
-			Transparency = if props.Active then 0.75 else 0.88,
+			Transparency = if props.Active then 0.7 else 1,
 			Thickness = 1,
 		}),
 		Icon = Roact.createElement("Frame", {

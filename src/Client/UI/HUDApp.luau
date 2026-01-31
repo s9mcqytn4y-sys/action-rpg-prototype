@@ -7,7 +7,6 @@ local Roact = require(Packages:WaitForChild("Roact") :: ModuleScript)
 
 local Shared = ReplicatedStorage:WaitForChild("Shared") :: Folder
 local Theme = require(Shared:WaitForChild("Config"):WaitForChild("EndfieldTheme") :: ModuleScript)
-local AssetIds = require(Shared:WaitForChild("Config"):WaitForChild("AssetIds") :: ModuleScript)
 
 local HUDRoot = require(script.Parent.Components:WaitForChild("HUDRoot") :: ModuleScript)
 local SettingsPanel = require(script.Parent.Components:WaitForChild("SettingsPanel") :: ModuleScript)
@@ -18,7 +17,6 @@ local HUDApp = Roact.Component:extend("HUDApp")
 function HUDApp:init()
 	self.state = {
 		showSettings = false,
-		pressed = false,
 	}
 
 	self.toggleSettings = function()
@@ -56,8 +54,6 @@ function HUDApp:willUnmount()
 end
 
 function HUDApp:render()
-	local pressed = self.state.pressed
-	local buttonScale = pressed and 0.96 or 1
 	local guiInset = GuiService:GetGuiInset()
 
 	return Roact.createElement("ScreenGui", {
@@ -84,16 +80,18 @@ function HUDApp:render()
 
 			SprintButton = Roact.createElement(SprintButton),
 
-			SettingsButton = Roact.createElement("ImageButton", {
+			SettingsButton = Roact.createElement("TextButton", {
 				Name = "SettingsButton",
 				AnchorPoint = Vector2.new(1, 0),
 				Position = UDim2.new(1, -18, 0, 18),
 				Size = UDim2.new(0, 40, 0, 36),
 
-				Image = AssetIds.Icons.Settings,
-				ImageColor3 = Theme.Colors.Text,
+				Text = "SET",
+				TextColor3 = Theme.Colors.Text,
+				TextSize = Theme.TypographySizes.Small,
+				Font = Theme.Typography.Title,
 				BackgroundColor3 = Theme.Colors.PanelAlt,
-				BackgroundTransparency = 0.08,
+				BackgroundTransparency = Theme.Transparency.PanelAlt,
 				AutoButtonColor = true,
 
 
@@ -102,27 +100,7 @@ function HUDApp:render()
 
 				[Roact.Event.Activated] = self.toggleSettings,
 
-				-- tiny press feedback
-				[Roact.Event.MouseButton1Down] = function()
-					self:setState({ pressed = true })
-				end,
-				[Roact.Event.MouseButton1Up] = function()
-					self:setState({ pressed = false })
-				end,
-				[Roact.Event.MouseLeave] = function()
-					if self.state.pressed then
-						self:setState({ pressed = false })
-					end
-				end,
-				[Roact.Event.TouchLongPress] = function(_, state)
-					-- optional: treat long press as "pressed" while holding
-					self:setState({ pressed = state == Enum.UserInputState.Begin })
-				end,
 			}, {
-				Scale = Roact.createElement("UIScale", {
-					Scale = buttonScale,
-				}),
-
 				Corner = Roact.createElement("UICorner", {
 					CornerRadius = UDim.new(0, Theme.Radius.M),
 				}),

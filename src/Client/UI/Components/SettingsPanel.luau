@@ -502,7 +502,7 @@ function SettingsPanel:render()
 		Overlay = Roact.createElement("Frame", {
 			Size = UDim2.fromScale(1, 1),
 			BackgroundColor3 = Theme.Colors.Background,
-			BackgroundTransparency = 0.22,
+			BackgroundTransparency = 0.12,
 			BorderSizePixel = 0,
 			ZIndex = 50,
 		}),

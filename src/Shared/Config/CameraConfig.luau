@@ -58,6 +58,7 @@ local CameraConfig = {
 	-- Input deadzone (fix micro-jitter)
 	MouseDeadzone = 0.25, -- px (ignore tiny deltas)
 	TouchDeadzone = 0.5,  -- px
+	ManualInputGrace = 0.25, -- seconds to suppress auto-align after manual input
 
 	-- Sensitivity
 	Sensitivity = 0.0018,

@@ -35,7 +35,7 @@ local PreferencesSchema: PreferencesSchema = {
 		SFX = { Default = 0.75, Min = 0, Max = 1, Step = 0.01, Type = "number" },
 	},
 	Camera = {
-		Sensitivity = { Default = 0.0020, Min = 0.001, Max = 0.008, Step = 0.0001, Type = "number" },
+		Sensitivity = { Default = 0.0018, Min = 0.001, Max = 0.008, Step = 0.0001, Type = "number" },
 		InvertY = { Default = false, Type = "boolean" },
 		Fov = { Default = 70, Min = 60, Max = 80, Step = 1, Type = "number" },
 	},

@@ -1,12 +1,11 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
-
 local Packages = ReplicatedStorage:WaitForChild("Packages") :: Folder
 local Roact = require(Packages:WaitForChild("Roact") :: ModuleScript)
 
 local Shared = ReplicatedStorage:WaitForChild("Shared") :: Folder
 local Theme = require(Shared:WaitForChild("Config"):WaitForChild("EndfieldTheme") :: ModuleScript)
+local TweenUtil = require(Shared:WaitForChild("Util"):WaitForChild("TweenUtil") :: ModuleScript)
 
 type Props = {
 	Min: number,
@@ -27,17 +26,6 @@ local TWEEN_SCALE = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirecti
 
 local function clamp01(x: number): number
 	return math.clamp(x, 0, 1)
-end
-
-local function safeCreateTween(self, instance: Instance, info: TweenInfo, props)
-	self._tweens = self._tweens or {}
-	local old = self._tweens[instance]
-	if old then
-		old:Cancel()
-	end
-	local tw = TweenService:Create(instance, info, props)
-	self._tweens[instance] = tw
-	tw:Play()
 end
 
 local function getRatio(minV: number, maxV: number, value: number): number
@@ -65,6 +53,7 @@ function Slider:init()
 
 	self._lastRatio = nil
 	self._conn = nil
+	self._tweens = {}
 
 	self._setFromInput = function(input: InputObject)
 		local props = self.props :: Props
@@ -102,7 +91,6 @@ function Slider:init()
 		self._dragging = true
 		self._setFromInput(input)
 
-		-- global drag: tetap update walau cursor keluar bar
 		if not self._conn then
 			self._conn = UserInputService.InputChanged:Connect(function(changed)
 				if not self._dragging then
@@ -114,10 +102,9 @@ function Slider:init()
 			end)
 		end
 
-		-- press feedback
 		local knobScale = self._knobScaleRef:getValue()
 		if knobScale then
-			safeCreateTween(self, knobScale, TWEEN_SCALE, { Scale = 0.92 })
+			TweenUtil.play(self._tweens, knobScale, TWEEN_SCALE, { Scale = 0.92 })
 		end
 	end
 
@@ -131,7 +118,7 @@ function Slider:init()
 
 		local knobScale = self._knobScaleRef:getValue()
 		if knobScale then
-			safeCreateTween(self, knobScale, TWEEN_SCALE, { Scale = 1 })
+			TweenUtil.play(self._tweens, knobScale, TWEEN_SCALE, { Scale = 1 })
 		end
 	end
 end
@@ -141,13 +128,13 @@ function Slider:_applyTween(ratio: number)
 	local knob = self._knobRef:getValue()
 
 	if fill then
-		safeCreateTween(self, fill, TWEEN_POS, {
+		TweenUtil.play(self._tweens, fill, TWEEN_POS, {
 			Size = UDim2.new(ratio, 0, 1, 0),
 		})
 	end
 
 	if knob then
-		safeCreateTween(self, knob, TWEEN_POS, {
+		TweenUtil.play(self._tweens, knob, TWEEN_POS, {
 			Position = UDim2.new(ratio, 0, 0.5, 0),
 		})
 	end
@@ -178,9 +165,7 @@ function Slider:willUnmount()
 	end
 
 	if self._tweens then
-		for _, tw in pairs(self._tweens) do
-			tw:Cancel()
-		end
+		TweenUtil.cancelAll(self._tweens)
 		self._tweens = nil
 	end
 end
@@ -190,7 +175,7 @@ function Slider:render()
 	local ratio = getRatio(props.Min, props.Max, props.Value)
 
 	local disabled = props.Disabled == true
-	local barTransparency = disabled and 0.55 or 0.12
+	local barTransparency = disabled and 0.55 or 0.08
 	local fillTransparency = disabled and 0.55 or 0
 	local knobTransparency = disabled and 0.35 or 0
 
@@ -267,7 +252,6 @@ function Slider:render()
 
 				[Roact.Ref] = self._knobRef,
 
-				-- klik knob juga bisa drag
 				[Roact.Event.InputBegan] = function(_, input)
 					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 						self._beginDrag(input)
@@ -295,7 +279,6 @@ function Slider:render()
 					Thickness = 1,
 				}),
 
-				-- subtle highlight
 				Highlight = Roact.createElement("UIGradient", {
 					Rotation = 90,
 					Transparency = NumberSequence.new({

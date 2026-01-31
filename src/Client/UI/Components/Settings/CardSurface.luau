@@ -44,7 +44,7 @@ function CardSurface:render()
 				ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255)),
 			}),
 			Transparency = NumberSequence.new({
-				NumberSequenceKeypoint.new(0, 0.9),
+				NumberSequenceKeypoint.new(0, 0.95),
 				NumberSequenceKeypoint.new(1, 1),
 			}),
 		}),

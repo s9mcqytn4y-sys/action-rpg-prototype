@@ -136,7 +136,7 @@ function ThirdPersonController:KnitInit()
 	selfImpl._name = "ThirdPersonController"
 	selfImpl._janitor = Janitor.new()
 	selfImpl._characterJanitor = Janitor.new()
-	selfImpl._metrics = Metrics.new(false)
+	selfImpl._metrics = Metrics.new(DebugConfig.EnableMetrics)
 
 	selfImpl._camera = ThirdPersonCamera.new(selfImpl._metrics)
 	selfImpl._movement = ThirdPersonMovement.new(selfImpl._metrics)

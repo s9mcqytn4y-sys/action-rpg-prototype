@@ -75,6 +75,7 @@ type ThirdPersonCameraImpl = ThirdPersonCamera & {
 	_shoulderSide: number,
 
 	_lastInputType: Enum.UserInputType?,
+	_lastManualInputTime: number,
 	_gamepadLook: Vector2,
 	_gamepadZoomAxis: number,
 	_gamepadTriggerL2: number,
@@ -184,6 +185,7 @@ function ThirdPersonCamera.new(metrics: Metrics): ThirdPersonCameraImpl
 		_shoulderSide = CameraConfig.ShoulderSide,
 
 		_lastInputType = nil,
+		_lastManualInputTime = 0,
 		_gamepadLook = Vector2.zero,
 		_gamepadZoomAxis = 0,
 		_gamepadTriggerL2 = 0,
@@ -338,6 +340,7 @@ function ThirdPersonCamera:Start()
 		selfImpl._yawTarget -= delta.X * sensitivity
 		selfImpl._pitchTarget -= delta.Y * sensitivity * invert
 		selfImpl._pitchTarget = math.clamp(selfImpl._pitchTarget, selfImpl._config.PitchMin, selfImpl._config.PitchMax)
+		selfImpl._lastManualInputTime = os.clock()
 	end), "Disconnect")
 
 	-- RMB free-look begin
@@ -549,6 +552,7 @@ function ThirdPersonCamera:_update(dt: number)
 		selfImpl._pitchTarget -= gamepadLook.Y * sensitivity * dt * invert
 		selfImpl._pitchTarget = math.clamp(selfImpl._pitchTarget, selfImpl._config.PitchMin, selfImpl._config.PitchMax)
 		hasGamepadLook = gamepadLook.Magnitude > 0
+		selfImpl._lastManualInputTime = os.clock()
 	end
 
 	-- Mouse free-look (RMB): use GetMouseDelta per-frame to avoid jitter.
@@ -564,6 +568,7 @@ function ThirdPersonCamera:_update(dt: number)
 			selfImpl._yawTarget -= delta.X * sensitivity
 			selfImpl._pitchTarget -= delta.Y * sensitivity * invert
 			selfImpl._pitchTarget = math.clamp(selfImpl._pitchTarget, selfImpl._config.PitchMin, selfImpl._config.PitchMax)
+			selfImpl._lastManualInputTime = os.clock()
 		end
 	end
 
@@ -579,7 +584,8 @@ function ThirdPersonCamera:_update(dt: number)
 	-- 1) Disabled while RMB free-look.
 	-- 2) Disabled for backward movement (press S) to prevent 180 snap.
 	-- 3) Rate-limited to prevent fast spinning.
-	if selfImpl._config.AutoAlignEnabled and not selfImpl._freeLook and not hasGamepadLook then
+	local manualGrace = (os.clock() - selfImpl._lastManualInputTime) < selfImpl._config.ManualInputGrace
+	if selfImpl._config.AutoAlignEnabled and not selfImpl._freeLook and not hasGamepadLook and not manualGrace then
 		local humanoid = character.humanoid
 		local moveDir = humanoid.MoveDirection
 		local flatMove = Vector3.new(moveDir.X, 0, moveDir.Z)
