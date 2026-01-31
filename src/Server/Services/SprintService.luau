@@ -1,3 +1,5 @@
+--!strict
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -44,6 +46,10 @@ end
 
 function SprintService.Client:RequestSprint(player, wantsSprint: boolean)
 	return self.Server:_requestSprint(player, wantsSprint)
+end
+
+function SprintService:SetWantsSprint(player: Player, wantsSprint: boolean)
+	self:_requestSprint(player, wantsSprint)
 end
 
 function SprintService:_initPlayer(player: Player)

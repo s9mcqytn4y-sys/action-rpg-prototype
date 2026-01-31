@@ -67,6 +67,10 @@ type ThirdPersonCameraImpl = ThirdPersonCamera & {
 
 	_lastRayHit: boolean,
 	_lastCFrame: CFrame?,
+	_focusPosition: Vector3?,
+	_smoothedMove: Vector3,
+	_focusHintPos: Vector3?,
+	_focusHintOffset: Vector3,
 
 	_mouseBehavior: Enum.MouseBehavior?,
 	_mouseIconEnabled: boolean?,
@@ -82,6 +86,8 @@ type ThirdPersonCameraImpl = ThirdPersonCamera & {
 	_gamepadTriggerR2: number,
 
 	_raycastParams: RaycastParams,
+
+	SetFocusHint: (self: ThirdPersonCamera, position: Vector3?) -> (),
 }
 
 local ThirdPersonCamera = {}
@@ -177,6 +183,10 @@ function ThirdPersonCamera.new(metrics: Metrics): ThirdPersonCameraImpl
 
 		_lastRayHit = false,
 		_lastCFrame = nil,
+		_focusPosition = nil,
+		_smoothedMove = Vector3.zero,
+		_focusHintPos = nil,
+		_focusHintOffset = Vector3.zero,
 
 		_mouseBehavior = nil,
 		_mouseIconEnabled = nil,
@@ -469,11 +479,20 @@ function ThirdPersonCamera:BindCharacter(character: Model?)
 
 	selfImpl._lastCFrame = nil
 	selfImpl._lastRayHit = false
+	selfImpl._focusPosition = nil
+	selfImpl._smoothedMove = Vector3.zero
+	selfImpl._focusHintPos = nil
+	selfImpl._focusHintOffset = Vector3.zero
 end
 
 function ThirdPersonCamera:GetCameraCFrame(): CFrame?
 	local selfImpl = self :: ThirdPersonCameraImpl
 	return selfImpl._lastCFrame
+end
+
+function ThirdPersonCamera:SetFocusHint(position: Vector3?)
+	local selfImpl = self :: ThirdPersonCameraImpl
+	selfImpl._focusHintPos = position
 end
 
 function ThirdPersonCamera:ApplySettings(settings: CameraSettings)
@@ -589,6 +608,9 @@ function ThirdPersonCamera:_update(dt: number)
 		local humanoid = character.humanoid
 		local moveDir = humanoid.MoveDirection
 		local flatMove = Vector3.new(moveDir.X, 0, moveDir.Z)
+		local moveAlpha = expAlpha(selfImpl._config.MoveDirectionSmoothingSpeed, dt)
+		selfImpl._smoothedMove = selfImpl._smoothedMove + (flatMove - selfImpl._smoothedMove) * moveAlpha
+		flatMove = selfImpl._smoothedMove
 		local camLook = selfImpl:_getCameraBasis().LookVector
 		local camForward = Vector3.new(camLook.X, 0, camLook.Z)
 
@@ -651,7 +673,36 @@ function ThirdPersonCamera:_update(dt: number)
 	-- Focus point
 	local shoulderBase = selfImpl._config.ShoulderOffset
 	local shoulderOffset = rotation:VectorToWorldSpace(Vector3.new(shoulderBase.X * selfImpl._shoulderSide, shoulderBase.Y, shoulderBase.Z))
-	local focus = root.Position + selfImpl._config.FocusOffset + shoulderOffset
+	local targetFocus = root.Position + selfImpl._config.FocusOffset + shoulderOffset
+	local focusAlpha = expAlpha(selfImpl._config.FocusSmoothingSpeed, dt)
+	if selfImpl._focusPosition then
+		selfImpl._focusPosition = selfImpl._focusPosition + (targetFocus - selfImpl._focusPosition) * focusAlpha
+	else
+		selfImpl._focusPosition = targetFocus
+	end
+	local focus = selfImpl._focusPosition
+
+	-- Subtle focus hint toward interactable (if set)
+	if selfImpl._config.InteractionFocusEnabled then
+		local targetPos = selfImpl._focusHintPos
+		local desiredOffset = Vector3.zero
+		if targetPos then
+			local toTarget = targetPos - focus
+			local flat = Vector3.new(toTarget.X, 0, toTarget.Z)
+			local deadzone = selfImpl._config.InteractionFocusDeadzone or 0
+			if flat.Magnitude > deadzone then
+				local weight = selfImpl._config.InteractionFocusWeight
+				desiredOffset = flat * weight
+			end
+			local maxOffset = selfImpl._config.InteractionFocusMaxOffset
+			if desiredOffset.Magnitude > maxOffset then
+				desiredOffset = desiredOffset.Unit * maxOffset
+			end
+		end
+		local hintAlpha = expAlpha(selfImpl._config.InteractionFocusSmoothingSpeed, dt)
+		selfImpl._focusHintOffset = selfImpl._focusHintOffset + (desiredOffset - selfImpl._focusHintOffset) * hintAlpha
+		focus = focus + selfImpl._focusHintOffset
+	end
 
 	-- Camera BEHIND focus:
 	-- Roblox forward = -Z, so "behind" is local +Z.

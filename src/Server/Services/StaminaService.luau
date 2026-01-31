@@ -1,3 +1,5 @@
+--!strict
+
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -350,6 +352,19 @@ function StaminaService:SetStamina(player, value)
 	end
 	data.current = math.clamp(value, 0, data.max)
 	data.lastDrainTime = now()
+	self:_setAttributes(player, data, true)
+end
+
+function StaminaService:ResetForSpawn(player: Player)
+	local data = self._stamina[player]
+	if not data then
+		return
+	end
+	data.current = data.max
+	data.state = "Idle"
+	data.isSprinting = false
+	data.exhaustedUntil = 0
+	data.lastDrainTime = -math.huge
 	self:_setAttributes(player, data, true)
 end
 

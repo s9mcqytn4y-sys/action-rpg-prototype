@@ -1,12 +1,14 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local GuiService = game:GetService("GuiService")
+local SoundService = game:GetService("SoundService")
 
 local Packages = ReplicatedStorage:WaitForChild("Packages") :: Folder
 local Roact = require(Packages:WaitForChild("Roact") :: ModuleScript)
 
 local Shared = ReplicatedStorage:WaitForChild("Shared") :: Folder
 local Theme = require(Shared:WaitForChild("Config"):WaitForChild("EndfieldTheme") :: ModuleScript)
+local InteractionConfig = require(Shared:WaitForChild("Config"):WaitForChild("InteractionConfig") :: ModuleScript)
 
 local HUDRoot = require(script.Parent.Components:WaitForChild("HUDRoot") :: ModuleScript)
 local SettingsPanel = require(script.Parent.Components:WaitForChild("SettingsPanel") :: ModuleScript)
@@ -19,8 +21,26 @@ function HUDApp:init()
 		showSettings = false,
 	}
 
+	self._settingsSound = nil
+
+	local existingSound = SoundService:FindFirstChild("SettingsToggle")
+	if existingSound and existingSound:IsA("Sound") then
+		self._settingsSound = existingSound
+	elseif InteractionConfig.SfxSoundId ~= "" then
+		local sound = Instance.new("Sound")
+		sound.Name = "SettingsToggle"
+		sound.SoundId = InteractionConfig.SfxSoundId
+		sound.Volume = 0.6
+		sound.Parent = SoundService
+		self._settingsSound = sound
+	end
+
 	self.toggleSettings = function()
 		self:setState(function(prev)
+			if self._settingsSound then
+				self._settingsSound.TimePosition = 0
+				self._settingsSound:Play()
+			end
 			return { showSettings = not prev.showSettings }
 		end)
 	end
@@ -76,49 +96,26 @@ function HUDApp:render()
 				PaddingRight = UDim.new(0, 0),
 			}),
 
-			HUD = Roact.createElement(HUDRoot),
-
-			SprintButton = Roact.createElement(SprintButton),
-
-			SettingsButton = Roact.createElement("TextButton", {
+			SettingsButton = Roact.createElement("ImageButton", {
 				Name = "SettingsButton",
 				AnchorPoint = Vector2.new(1, 0),
 				Position = UDim2.new(1, -18, 0, 18),
-				Size = UDim2.new(0, 40, 0, 36),
+				Size = UDim2.new(0, 36, 0, 36),
 
-				Text = "SET",
-				TextColor3 = Theme.Colors.Text,
-				TextSize = Theme.TypographySizes.Small,
-				Font = Theme.Typography.Title,
-				BackgroundColor3 = Theme.Colors.PanelAlt,
-				BackgroundTransparency = Theme.Transparency.PanelAlt,
+				Image = "rbxasset://textures/ui/SettingsIcon.png",
+				ImageColor3 = Theme.Colors.Text,
+				BackgroundTransparency = 1,
 				AutoButtonColor = true,
-
 
 				Selectable = true,
 				SelectionOrder = 1,
 
 				[Roact.Event.Activated] = self.toggleSettings,
-
-			}, {
-				Corner = Roact.createElement("UICorner", {
-					CornerRadius = UDim.new(0, Theme.Radius.M),
-				}),
-
-				Stroke = Roact.createElement("UIStroke", {
-					Color = Theme.Colors.Border,
-					Transparency = 0.35,
-					Thickness = 1,
-				}),
-
-				Highlight = Roact.createElement("UIGradient", {
-					Rotation = 90,
-					Transparency = NumberSequence.new({
-						NumberSequenceKeypoint.new(0, 0.8),
-						NumberSequenceKeypoint.new(1, 1),
-					}),
-				}),
 			}),
+
+			HUD = Roact.createElement(HUDRoot),
+
+			SprintButton = Roact.createElement(SprintButton),
 
 			Settings = Roact.createElement(SettingsPanel, {
 				Visible = self.state.showSettings,

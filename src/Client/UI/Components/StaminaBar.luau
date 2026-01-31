@@ -1,3 +1,5 @@
+--!strict
+
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local Packages = ReplicatedStorage:WaitForChild("Packages") :: Folder
@@ -28,7 +30,7 @@ local function pickColor3(primary: any, fallback: Color3)
 end
 
 local COLOR_TRACK = Color3.fromRGB(38, 42, 52)
-local COLOR_LOW = Color3.fromRGB(255, 196, 90)
+local COLOR_LOW = Color3.fromRGB(245, 176, 0)
 local COLOR_EXHAUSTED = Color3.fromRGB(255, 90, 90)
 
 local function clamp01(x: number): number
@@ -44,6 +46,7 @@ end
 
 function StaminaBar:init()
 	self._containerRef = Roact.createRef()
+	self._scaleRef = Roact.createRef()
 	self._fillRef = Roact.createRef()
 	self._warningRef = Roact.createRef()
 	self._glowRef = Roact.createRef()
@@ -54,6 +57,7 @@ function StaminaBar:init()
 	self._lastShow = nil
 	self._lastRatio = nil
 	self._lastLow = nil
+	self._lastState = nil
 	self._pulseTween = nil :: Tween?
 end
 
@@ -66,6 +70,7 @@ function StaminaBar:_updateVisual()
 	local ratio = ratioOf(current, max)
 	local show = (ratio < HIDE_AT_RATIO) or (state == "Draining") or (state == "Recovering") or (state == "Exhausted")
 	local low = ratio <= LOW_THRESHOLD
+	local dropped = (self._lastRatio ~= nil) and (ratio < (self._lastRatio :: number) - 0.02)
 
 	-- Show/hide container
 	if show ~= self._lastShow then
@@ -99,7 +104,7 @@ function StaminaBar:_updateVisual()
 	-- Optional: change fill color based on state/low (biar lebih hidup)
 	local fill = self._fillRef:getValue()
 	if fill then
-		local accent = pickColor3(Theme.Colors.Accent, Color3.fromRGB(100, 170, 255))
+		local accent = pickColor3(Theme.Colors.Accent, Color3.fromRGB(245, 176, 0))
 		local targetColor =
 			(state == "Exhausted" and COLOR_EXHAUSTED)
 			or (low and COLOR_LOW)
@@ -109,6 +114,22 @@ function StaminaBar:_updateVisual()
 			BackgroundColor3 = targetColor,
 		})
 	end
+
+	if dropped then
+		local scale = self._scaleRef:getValue()
+		if scale then
+			TweenUtil.play(self._tweens, scale, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Scale = 1.03,
+			})
+			task.delay(0.08, function()
+				TweenUtil.play(self._tweens, scale, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+					Scale = 1,
+				})
+			end)
+		end
+	end
+
+	self._lastState = state
 end
 
 function StaminaBar:_setGlow(active: boolean)
@@ -175,21 +196,21 @@ function StaminaBar:render()
 	local maxInt = math.floor(max + 0.5)
 
 	-- lebih solid (tidak terlalu transparan)
-	local panelTransparency = 0.06
-	local trackTransparency = 0.12
+	local panelTransparency = 0
+	local trackTransparency = 0.2
 
 	return Roact.createElement("CanvasGroup", {
 		Name = "StaminaBar",
 		GroupTransparency = 1,
 
 		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -34),
-		Size = UDim2.new(0, 260, 0, 24),
+		Position = UDim2.new(0.5, 0, 1, -42),
+		Size = UDim2.new(0, 320, 0, 28),
 
 		BackgroundTransparency = 1,
 		[Roact.Ref] = self._containerRef,
 	}, {
-		Scale = Roact.createElement("UIScale", { Scale = 1 }),
+		Scale = Roact.createElement("UIScale", { Scale = 1, [Roact.Ref] = self._scaleRef }),
 
 		Frame = Roact.createElement("Frame", {
 			Size = UDim2.fromScale(1, 1),
@@ -198,12 +219,12 @@ function StaminaBar:render()
 			BorderSizePixel = 0,
 		}, {
 			Corner = Roact.createElement("UICorner", {
-				CornerRadius = UDim.new(0, Theme.Radius.M),
+				CornerRadius = UDim.new(0, Theme.Radius.S),
 			}),
 
 			Stroke = Roact.createElement("UIStroke", {
 				Color = Theme.Colors.Border,
-				Transparency = 0.55,
+				Transparency = 0.35,
 				Thickness = 1,
 			}),
 
@@ -233,18 +254,18 @@ function StaminaBar:render()
 						CornerRadius = UDim.new(0, Theme.Radius.S),
 					}),
 
-					Gradient = Roact.createElement("UIGradient", {
-						Color = ColorSequence.new({
-							ColorSequenceKeypoint.new(0, Color3.fromRGB(140, 205, 255)),
-							ColorSequenceKeypoint.new(1, Theme.Colors.Accent),
-						}),
-						Rotation = 0,
+				Gradient = Roact.createElement("UIGradient", {
+					Color = ColorSequence.new({
+						ColorSequenceKeypoint.new(0, Theme.Colors.Accent),
+						ColorSequenceKeypoint.new(1, Theme.Colors.Accent),
 					}),
+					Rotation = 0,
+				}),
 				}),
 
 				InnerStroke = Roact.createElement("UIStroke", {
 					Color = Theme.Colors.Border,
-					Transparency = 0.55,
+					Transparency = 0.5,
 					Thickness = 1,
 				}),
 			}),
@@ -270,8 +291,8 @@ function StaminaBar:render()
 				Position = UDim2.new(0, 12, 0.5, -12),
 				Size = UDim2.new(0, 64, 0, 14),
 
-				BackgroundColor3 = Theme.Colors.HeaderBar,
-				BackgroundTransparency = 1,
+				BackgroundColor3 = Theme.Colors.PanelAlt,
+				BackgroundTransparency = 0.12,
 				Text = "EXHAUSTED",
 				TextColor3 = Theme.Colors.Warning,
 				TextTransparency = 1,

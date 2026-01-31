@@ -32,15 +32,17 @@ local CameraConfig = {
 	PitchMax = math.rad(25),
 
 	-- Smoothing (dt-stable)
-	RotationSmoothingSpeed = 8.0, -- softer for comfort
-	CFrameSmoothingSpeed = 12.0,
-	DistanceSmoothingSpeed = 12.0,
+	RotationSmoothingSpeed = 9.5, -- softer for comfort
+	CFrameSmoothingSpeed = 14.0,
+	DistanceSmoothingSpeed = 14.0,
+	FocusSmoothingSpeed = 16.0,
+	MoveDirectionSmoothingSpeed = 12.0,
 
 	-- Auto alignment (comfort tuned)
 	AutoAlignMoveThreshold = 0.25,
-	AutoAlignSpeed = 2.6,     -- slower: reduces nausea
-	AutoAlignIdleSpeed = 1.4, -- gentle recenter
-	AutoAlignMaxYawRateDeg = 75, -- safety cap (deg/sec)
+	AutoAlignSpeed = 2.1,     -- slower: reduces nausea
+	AutoAlignIdleSpeed = 1.1, -- gentle recenter
+	AutoAlignMaxYawRateDeg = 60, -- safety cap (deg/sec)
 
 	-- Backward movement handling:
 	-- If moving opposite to character forward (dot < threshold), DON'T align to movement.
@@ -56,14 +58,14 @@ local CameraConfig = {
 	MaxTouchDelta = 70,
 
 	-- Input deadzone (fix micro-jitter)
-	MouseDeadzone = 0.25, -- px (ignore tiny deltas)
+	MouseDeadzone = 0.3, -- px (ignore tiny deltas)
 	TouchDeadzone = 0.5,  -- px
-	ManualInputGrace = 0.25, -- seconds to suppress auto-align after manual input
+	ManualInputGrace = 0.35, -- seconds to suppress auto-align after manual input
 
 	-- Sensitivity
 	Sensitivity = 0.0018,
 	TouchSensitivity = 0.0035,
-	GamepadSensitivity = 3.2, -- radians/sec at full deflection
+	GamepadSensitivity = 2.8, -- radians/sec at full deflection
 	GamepadDeadzone = 0.12,
 	GamepadResponseExponent = 1.4,
 
@@ -81,6 +83,13 @@ local CameraConfig = {
 
 	-- Auto align toggle
 	AutoAlignEnabled = true,
+
+	-- Interaction focus hint (subtle nudge toward interactable)
+	InteractionFocusEnabled = false,
+	InteractionFocusWeight = 0.1,
+	InteractionFocusMaxOffset = 0.8,
+	InteractionFocusSmoothingSpeed = 10.0,
+	InteractionFocusDeadzone = 1.5,
 
 	-- Motion blur (camera-based)
 	MotionBlur = {

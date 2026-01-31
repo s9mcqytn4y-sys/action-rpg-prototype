@@ -1,3 +1,5 @@
+--!strict
+
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -85,6 +87,9 @@ function StaminaController:KnitStart()
 
 	self._janitor:Add(localPlayer.CharacterAdded:Connect(function(character)
 		self:_bindAttributes(character)
+	end), "Disconnect")
+	self._janitor:Add(localPlayer.CharacterRemoving:Connect(function()
+		self._attributeJanitor:Cleanup()
 	end), "Disconnect")
 
 	if localPlayer.Character then

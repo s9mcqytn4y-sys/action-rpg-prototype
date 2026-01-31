@@ -26,6 +26,7 @@ type SettingsStateType = typeof(SettingsState)
 type ThirdPersonController = {
 	KnitInit: (self: ThirdPersonController) -> (),
 	KnitStart: (self: ThirdPersonController) -> (),
+	SetInteractFocus: (self: ThirdPersonController, position: Vector3?) -> (),
 }
 
 type ThirdPersonControllerImpl = ThirdPersonController & {
@@ -264,6 +265,11 @@ function ThirdPersonController:_unbindCharacter()
 	selfImpl._movement:BindCharacter(nil)
 
 	selfImpl._metrics:Increment("characterUnbinds", 1)
+end
+
+function ThirdPersonController:SetInteractFocus(position: Vector3?)
+	local selfImpl = self :: ThirdPersonControllerImpl
+	selfImpl._camera:SetFocusHint(position)
 end
 
 return ThirdPersonController

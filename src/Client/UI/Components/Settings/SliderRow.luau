@@ -1,3 +1,5 @@
+--!strict
+
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Packages = ReplicatedStorage:WaitForChild("Packages") :: Folder
@@ -32,10 +34,10 @@ end
 
 function SliderRow:render()
 	local props = self.props :: Props
-	return Roact.createElement("Frame", {
-		Size = UDim2.new(1, 0, 0, 58),
-		BackgroundColor3 = Theme.Colors.Panel,
-		BackgroundTransparency = Theme.Transparency.Panel,
+return Roact.createElement("Frame", {
+		Size = UDim2.new(1, 0, 0, 56),
+		BackgroundColor3 = Theme.Colors.PanelAlt,
+		BackgroundTransparency = 0,
 		BorderSizePixel = 0,
 		LayoutOrder = props.LayoutOrder,
 	}, {
@@ -44,7 +46,7 @@ function SliderRow:render()
 		}),
 		Stroke = Roact.createElement("UIStroke", {
 			Color = Theme.Colors.Border,
-			Transparency = 0.45,
+			Transparency = 0.35,
 			Thickness = 1,
 		}),
 		Label = Roact.createElement("TextLabel", {
@@ -62,7 +64,7 @@ function SliderRow:render()
 			Position = UDim2.new(0.7, 0, 0, 6),
 			Size = UDim2.new(0.3, -Theme.Spacing.M, 0, 18),
 			Text = formatValue(props.Value),
-			TextColor3 = Theme.Colors.Muted,
+			TextColor3 = Theme.Colors.Accent,
 			TextSize = Theme.TypographySizes.Mono,
 			Font = Theme.Typography.Mono,
 			TextXAlignment = Enum.TextXAlignment.Right,

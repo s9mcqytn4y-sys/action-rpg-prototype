@@ -1,3 +1,5 @@
+--!strict
+
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Packages = ReplicatedStorage:WaitForChild("Packages") :: Folder
@@ -16,28 +18,32 @@ local SectionHeaderBar = Roact.PureComponent:extend("SectionHeaderBar")
 function SectionHeaderBar:render()
 	local props = self.props :: Props
 	return Roact.createElement("Frame", {
-		Size = UDim2.new(1, 0, 0, 30),
-		BackgroundColor3 = Theme.Colors.HeaderBar,
-		BackgroundTransparency = Theme.Transparency.HeaderBar,
+		Size = UDim2.new(1, 0, 0, 28),
+		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
 		LayoutOrder = props.LayoutOrder,
 	}, {
-		Corner = Roact.createElement("UICorner", {
-			CornerRadius = UDim.new(0, Theme.Radius.S),
+		Line = Roact.createElement("Frame", {
+			Position = UDim2.new(0, Theme.Spacing.S, 0.5, 0),
+			Size = UDim2.new(1, -Theme.Spacing.S * 2, 0, 1),
+			BackgroundColor3 = Theme.Colors.Border,
+			BackgroundTransparency = 0.7,
+			BorderSizePixel = 0,
 		}),
-		Stroke = Roact.createElement("UIStroke", {
-			Color = Theme.Colors.Border,
-			Transparency = 0.5,
-			Thickness = 1,
+		Accent = Roact.createElement("Frame", {
+			Position = UDim2.new(0, Theme.Spacing.S, 0.5, -1),
+			Size = UDim2.new(0, 40, 0, 2),
+			BackgroundColor3 = Theme.Colors.Accent,
+			BorderSizePixel = 0,
 		}),
 		Label = Roact.createElement("TextLabel", {
 			BackgroundTransparency = 1,
-			Position = UDim2.new(0, Theme.Spacing.S, 0, 0),
+			Position = UDim2.new(0, Theme.Spacing.S + 48, 0, 0),
 			Size = UDim2.new(1, -Theme.Spacing.S * 2, 1, 0),
 			Text = props.Text,
 			TextColor3 = Theme.Colors.Text,
 			TextSize = Theme.TypographySizes.Subtitle,
-			Font = Theme.Typography.Title,
+			Font = Theme.Typography.Body,
 			TextXAlignment = Enum.TextXAlignment.Left,
 		}),
 	})

@@ -7,6 +7,8 @@ export type DebugConfig = {
 	LogWarnings: boolean,
 	TagsEnabled: boolean,
 	TagsLogFrequencySec: number,
+	LifecycleEnabled: boolean,
+	LifecycleLogFrequencySec: number,
 }
 
 local DebugConfig: DebugConfig = {
@@ -16,6 +18,8 @@ local DebugConfig: DebugConfig = {
 	LogWarnings = true,
 	TagsEnabled = true,
 	TagsLogFrequencySec = 10,
+	LifecycleEnabled = true,
+	LifecycleLogFrequencySec = 8,
 }
 
 return DebugConfig

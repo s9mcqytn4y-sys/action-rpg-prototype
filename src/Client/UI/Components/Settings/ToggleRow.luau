@@ -1,3 +1,5 @@
+--!strict
+
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Packages = ReplicatedStorage:WaitForChild("Packages") :: Folder
@@ -20,10 +22,10 @@ type Props = {
 
 function ToggleRow:render()
 	local props = self.props :: Props
-	return Roact.createElement("Frame", {
+return Roact.createElement("Frame", {
 		Size = UDim2.new(1, 0, 0, 50),
-		BackgroundColor3 = Theme.Colors.Panel,
-		BackgroundTransparency = Theme.Transparency.Panel,
+		BackgroundColor3 = Theme.Colors.PanelAlt,
+		BackgroundTransparency = 0,
 		BorderSizePixel = 0,
 		LayoutOrder = props.LayoutOrder,
 	}, {
@@ -32,7 +34,7 @@ function ToggleRow:render()
 		}),
 		Stroke = Roact.createElement("UIStroke", {
 			Color = Theme.Colors.Border,
-			Transparency = 0.45,
+			Transparency = 0.35,
 			Thickness = 1,
 		}),
 		Label = Roact.createElement("TextLabel", {

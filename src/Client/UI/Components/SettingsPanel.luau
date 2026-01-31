@@ -502,56 +502,28 @@ function SettingsPanel:render()
 		Overlay = Roact.createElement("Frame", {
 			Size = UDim2.fromScale(1, 1),
 			BackgroundColor3 = Theme.Colors.Background,
-			BackgroundTransparency = 0.12,
+			BackgroundTransparency = 1,
 			BorderSizePixel = 0,
 			ZIndex = 50,
 		}),
 		Panel = Roact.createElement(CardSurface, {
-			Size = UDim2.new(0, 880, 0, 500),
-			Position = UDim2.new(0.5, 0, 0.5, math.floor(guiInset.Y + 8)),
+			Size = UDim2.fromOffset(920, 520),
+			Position = UDim2.new(0.5, 0, 0.5, math.floor(guiInset.Y + 6)),
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			LayoutOrder = 1,
 			ZIndex = 52,
 			Children = {
-				Shadow = Roact.createElement("Frame", {
-					AnchorPoint = Vector2.new(0.5, 0.5),
-					Position = UDim2.new(0.5, 2, 0.5, 3),
-					Size = UDim2.new(1, 4, 1, 4),
-					BackgroundColor3 = Color3.fromRGB(0, 0, 0),
-					BackgroundTransparency = 0.92,
-					BorderSizePixel = 0,
-					ZIndex = 51,
-				}, {
-					Corner = Roact.createElement("UICorner", {
-						CornerRadius = UDim.new(0, Theme.Radius.L),
-					}),
-					Gradient = Roact.createElement("UIGradient", {
-						Rotation = 90,
-						Color = ColorSequence.new({
-							ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 0, 0)),
-							ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0)),
-						}),
-						Transparency = NumberSequence.new({
-							NumberSequenceKeypoint.new(0, 0.35),
-							NumberSequenceKeypoint.new(1, 1),
-						}),
-					}),
-				}),
-				Anchor = Roact.createElement("UIAspectRatioConstraint", {
-					AspectRatio = 1.7,
-					DominantAxis = Enum.DominantAxis.Width,
-				}),
 				Scale = Roact.createElement("UIScale", {
 					Scale = 1,
 					[Roact.Ref] = self._scaleRef,
 				}),
 				SizeConstraint = Roact.createElement("UISizeConstraint", {
-					MaxSize = Vector2.new(1000, 600),
-					MinSize = Vector2.new(680, 400),
+					MaxSize = Vector2.new(980, 560),
+					MinSize = Vector2.new(760, 440),
 				}),
 				Header = Roact.createElement(PanelHeader, {
-					Title = "Settings - Gameplay, Audio, Display",
-					Subtitle = "Comfort options and preferences for your playstyle",
+					Title = "Settings",
+					Subtitle = "Graphics, Audio, Controls",
 					ShortcutHint = "F10 / P / ESC",
 					OnClose = function()
 						props.OnClose()
@@ -561,8 +533,8 @@ function SettingsPanel:render()
 					end,
 				}),
 				Sidebar = Roact.createElement(CardSurface, {
-					Position = UDim2.new(0, Theme.Spacing.L, 0, 70),
-					Size = UDim2.new(0, 200, 1, -96),
+					Position = UDim2.new(0, Theme.Spacing.L, 0, 84),
+					Size = UDim2.new(0, 180, 1, -110),
 					Children = {
 					Layout = Roact.createElement("UIListLayout", {
 						Padding = UDim.new(0, Theme.Spacing.XS),
@@ -628,8 +600,8 @@ function SettingsPanel:render()
 				},
 				}),
 				ContentCard = Roact.createElement(CardSurface, {
-					Position = UDim2.new(0, 220, 0, 70),
-					Size = UDim2.new(1, -Theme.Spacing.L - 220, 1, -96),
+					Position = UDim2.new(0, 210, 0, 84),
+					Size = UDim2.new(1, -Theme.Spacing.L - 210, 1, -110),
 					ZIndex = 52,
 					Children = {
 						Scroll = Roact.createElement("ScrollingFrame", {
