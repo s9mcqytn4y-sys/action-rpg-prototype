@@ -5,6 +5,8 @@ export type DebugConfig = {
 	LogModeChanges: boolean,
 	LogCharacterBinding: boolean,
 	LogWarnings: boolean,
+	TagsEnabled: boolean,
+	TagsLogFrequencySec: number,
 }
 
 local DebugConfig: DebugConfig = {
@@ -12,6 +14,8 @@ local DebugConfig: DebugConfig = {
 	LogModeChanges = false,
 	LogCharacterBinding = false,
 	LogWarnings = true,
+	TagsEnabled = true,
+	TagsLogFrequencySec = 10,
 }
 
 return DebugConfig
