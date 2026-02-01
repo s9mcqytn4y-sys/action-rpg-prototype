@@ -47,6 +47,7 @@ function CameraMotionBlur.new(config)
 	self._lastCFrame = nil
 	self._lastYaw = nil
 	self._lastPitch = nil
+	self._lastLinearSpeed = nil
 	self._currentBlur = 0
 	self._maxSize = 0
 	self._enabled = true
@@ -62,6 +63,7 @@ function CameraMotionBlur:AttachCamera(camera: Camera?)
 	self._lastCFrame = nil
 	self._lastYaw = nil
 	self._lastPitch = nil
+	self._lastLinearSpeed = nil
 
 	if not camera then
 		self._blur = nil
@@ -123,6 +125,8 @@ function CameraMotionBlur:Update(dt: number)
 	if self._lastCFrame then
 		local deltaPos = currentCFrame.Position - self._lastCFrame.Position
 		local linearSpeed = deltaPos.Magnitude / dt
+		local lastLinear = self._lastLinearSpeed or linearSpeed
+		local linearAccel = math.abs(linearSpeed - lastLinear) / dt
 
 		local pitch, yaw, _ = currentCFrame:ToOrientation()
 		local lastYaw = self._lastYaw or yaw
@@ -132,15 +136,23 @@ function CameraMotionBlur:Update(dt: number)
 		local rotSpeed = yawRate + pitchRate
 
 		local maxAllowed = math.min(self._maxSize, config.MaxSize)
-		target = (linearSpeed * config.LinearVelocityScale) + (rotSpeed * config.RotVelocityScale)
+		local base = (linearSpeed * config.LinearVelocityScale) + (rotSpeed * config.RotVelocityScale)
+		if config.AccelScale then
+			base += (linearAccel * config.AccelScale)
+		end
+		local normalized = if maxAllowed > 0 then math.clamp(base / maxAllowed, 0, 1) else 0
+		local gamma = config.ResponseGamma or 1
+		target = (normalized ^ gamma) * maxAllowed
 		target = math.clamp(target, config.MinSize, maxAllowed)
 
 		self._lastYaw = yaw
 		self._lastPitch = pitch
+		self._lastLinearSpeed = linearSpeed
 	else
 		local pitch, yaw, _ = currentCFrame:ToOrientation()
 		self._lastYaw = yaw
 		self._lastPitch = pitch
+		self._lastLinearSpeed = 0
 	end
 
 	local alpha = expAlpha(config.SmoothingSpeed, dt)

@@ -1,20 +1,38 @@
+--!strict
+
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
-local GuiService = game:GetService("GuiService")
 local SoundService = game:GetService("SoundService")
+local GuiService = game:GetService("GuiService")
 
 local Packages = ReplicatedStorage:WaitForChild("Packages") :: Folder
 local Roact = require(Packages:WaitForChild("Roact") :: ModuleScript)
+local RoactRodux = require(Packages:WaitForChild("Roact-Rodux") :: ModuleScript)
 
 local Shared = ReplicatedStorage:WaitForChild("Shared") :: Folder
 local Theme = require(Shared:WaitForChild("Config"):WaitForChild("EndfieldTheme") :: ModuleScript)
 local InteractionConfig = require(Shared:WaitForChild("Config"):WaitForChild("InteractionConfig") :: ModuleScript)
+local UIIcons = require(Shared:WaitForChild("UI"):WaitForChild("UIIcons") :: ModuleScript)
 
 local HUDRoot = require(script.Parent.Components:WaitForChild("HUDRoot") :: ModuleScript)
 local SettingsPanel = require(script.Parent.Components:WaitForChild("SettingsPanel") :: ModuleScript)
 local SprintButton = require(script.Parent.Components:WaitForChild("SprintButton") :: ModuleScript)
+local Core = script.Parent.Components:WaitForChild("Core") :: Folder
+local IconButton = require(Core:WaitForChild("IconButton") :: ModuleScript)
+
+local ClientRoot = script.Parent.Parent :: Folder
+local State = ClientRoot:WaitForChild("State") :: Folder
+local store = require(State:WaitForChild("Store") :: ModuleScript)
+local Actions = require(State:WaitForChild("Actions") :: ModuleScript)
 
 local HUDApp = Roact.Component:extend("HUDApp")
+
+type Props = {
+	Viewport: {
+		className: string,
+		scale: number,
+	}?,
+}
 
 function HUDApp:init()
 	self.state = {
@@ -37,20 +55,24 @@ function HUDApp:init()
 
 	self.toggleSettings = function()
 		self:setState(function(prev)
+			local nextOpen = not prev.showSettings
+			store:dispatch(Actions.SetMenuOpen(nextOpen))
 			if self._settingsSound then
 				self._settingsSound.TimePosition = 0
 				self._settingsSound:Play()
 			end
-			return { showSettings = not prev.showSettings }
+			return { showSettings = nextOpen }
 		end)
 	end
 
 	self.closeSettings = function()
+		store:dispatch(Actions.SetMenuOpen(false))
 		self:setState({ showSettings = false })
 	end
 end
 
 function HUDApp:didMount()
+	store:dispatch(Actions.SetMenuOpen(self.state.showSettings == true))
 	self._inputConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if gameProcessed then
 			return
@@ -59,7 +81,11 @@ function HUDApp:didMount()
 			return
 		end
 		if input.UserInputType == Enum.UserInputType.Keyboard then
-			if input.KeyCode == Enum.KeyCode.F10 or input.KeyCode == Enum.KeyCode.P then
+			if input.KeyCode == Enum.KeyCode.P then
+				self.toggleSettings()
+			end
+		elseif input.UserInputType == Enum.UserInputType.Gamepad1 then
+			if input.KeyCode == Enum.KeyCode.ButtonStart then
 				self.toggleSettings()
 			end
 		end
@@ -71,10 +97,21 @@ function HUDApp:willUnmount()
 		self._inputConn:Disconnect()
 		self._inputConn = nil
 	end
+	store:dispatch(Actions.SetMenuOpen(false))
 end
 
 function HUDApp:render()
-	local guiInset = GuiService:GetGuiInset()
+	local props = self.props :: Props
+	local viewport = props.Viewport
+	local className = if viewport then viewport.className else "Desktop"
+	local isPhone = className == "Phone"
+	local showShortcut = UserInputService.KeyboardEnabled and UserInputService.MouseEnabled and not UserInputService.TouchEnabled
+	local shortcutLabel = if showShortcut then "P" else nil
+
+	local buttonSize = if isPhone then 42 else 34
+	local buttonPaddingX = if isPhone then Theme.Spacing.M else Theme.Spacing.L
+	local buttonPaddingY = if isPhone then 64 else Theme.Spacing.L
+	local inset = GuiService:GetGuiInset()
 
 	return Roact.createElement("ScreenGui", {
 		Name = "HUDApp",
@@ -89,28 +126,15 @@ function HUDApp:render()
 			BackgroundTransparency = 1,
 			Size = UDim2.fromScale(1, 1),
 		}, {
-			UIPadding = Roact.createElement("UIPadding", {
-				PaddingTop = UDim.new(0, guiInset.Y),
-				PaddingBottom = UDim.new(0, 0),
-				PaddingLeft = UDim.new(0, guiInset.X),
-				PaddingRight = UDim.new(0, 0),
-			}),
-
-			SettingsButton = Roact.createElement("ImageButton", {
-				Name = "SettingsButton",
+			SettingsButton = Roact.createElement(IconButton, {
 				AnchorPoint = Vector2.new(1, 0),
-				Position = UDim2.new(1, -18, 0, 18),
-				Size = UDim2.new(0, 36, 0, 36),
-
-				Image = "rbxasset://textures/ui/SettingsIcon.png",
-				ImageColor3 = Theme.Colors.Text,
-				BackgroundTransparency = 1,
-				AutoButtonColor = true,
-
-				Selectable = true,
-				SelectionOrder = 1,
-
-				[Roact.Event.Activated] = self.toggleSettings,
+				Position = UDim2.new(1, -buttonPaddingX, 0, inset.Y + buttonPaddingY),
+				Size = UDim2.fromOffset(buttonSize, buttonSize),
+				Image = UIIcons.Settings,
+				ZIndex = 20,
+				Label = "SET",
+				Shortcut = shortcutLabel,
+				OnActivated = self.toggleSettings,
 			}),
 
 			HUD = Roact.createElement(HUDRoot),
@@ -125,4 +149,10 @@ function HUDApp:render()
 	})
 end
 
-return HUDApp
+local function mapStateToProps(state)
+	return {
+		Viewport = state.UI and state.UI.Viewport or nil,
+	}
+end
+
+return RoactRodux.connect({ "UI" }, mapStateToProps)(HUDApp)

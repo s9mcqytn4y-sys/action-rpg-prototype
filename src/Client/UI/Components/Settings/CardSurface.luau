@@ -1,3 +1,5 @@
+--!strict
+
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Packages = ReplicatedStorage:WaitForChild("Packages") :: Folder
@@ -5,6 +7,9 @@ local Roact = require(Packages:WaitForChild("Roact") :: ModuleScript)
 
 local Shared = ReplicatedStorage:WaitForChild("Shared") :: Folder
 local Theme = require(Shared:WaitForChild("Config"):WaitForChild("EndfieldTheme") :: ModuleScript)
+
+local Core = script.Parent.Parent:WaitForChild("Core") :: Folder
+local Surface = require(Core:WaitForChild("Surface") :: ModuleScript)
 
 type Props = {
 	AnchorPoint: Vector2?,
@@ -19,7 +24,7 @@ local CardSurface = Roact.PureComponent:extend("CardSurface")
 
 function CardSurface:render()
 	local props = self.props :: Props
-return Roact.createElement("Frame", {
+	return Roact.createElement(Surface, {
 		AnchorPoint = props.AnchorPoint,
 		Size = props.Size or UDim2.new(1, 0, 0, 44),
 		Position = props.Position,
@@ -27,17 +32,11 @@ return Roact.createElement("Frame", {
 		ZIndex = props.ZIndex,
 		BackgroundColor3 = Theme.Colors.Panel,
 		BackgroundTransparency = Theme.Transparency.Panel,
-		BorderSizePixel = 0,
-	}, {
-		Corner = Roact.createElement("UICorner", {
-			CornerRadius = UDim.new(0, Theme.Radius.M),
-		}),
-		Stroke = Roact.createElement("UIStroke", {
-			Color = Theme.Colors.Border,
-			Transparency = 0.35,
-			Thickness = 1,
-		}),
-		Children = Roact.createFragment(props.Children),
+		CornerRadius = Theme.Radius.M,
+		StrokeColor = Theme.Colors.Border,
+		StrokeTransparency = 0.35,
+		StrokeThickness = 1,
+		Children = props.Children,
 	})
 end
 

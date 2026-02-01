@@ -1,5 +1,10 @@
 --!strict
 
+local UI = script.Parent.Parent:WaitForChild("UI") :: Folder
+local UITheme = require(UI:WaitForChild("UITheme") :: ModuleScript)
+local UISpacing = require(UI:WaitForChild("UISpacing") :: ModuleScript)
+local UITypography = require(UI:WaitForChild("UITypography") :: ModuleScript)
+
 export type EndfieldTheme = {
 	Colors: {
 		Background: Color3,
@@ -38,6 +43,7 @@ export type EndfieldTheme = {
 		M: number,
 		L: number,
 		XL: number,
+		XXL: number,
 	},
 	Radius: {
 		S: number,
@@ -48,47 +54,48 @@ export type EndfieldTheme = {
 
 local EndfieldTheme: EndfieldTheme = {
 	Colors = {
-		Background = Color3.fromRGB(12, 14, 18),
-		Panel = Color3.fromRGB(23, 26, 33),
-		PanelAlt = Color3.fromRGB(30, 33, 41),
-		Border = Color3.fromRGB(58, 63, 74),
-		HeaderBar = Color3.fromRGB(20, 22, 28),
-		Text = Color3.fromRGB(233, 236, 242),
-		Muted = Color3.fromRGB(160, 166, 179),
-		Accent = Color3.fromRGB(245, 176, 0),
-		AccentSoft = Color3.fromRGB(54, 46, 24),
-		Positive = Color3.fromRGB(110, 210, 150),
-		Warning = Color3.fromRGB(245, 176, 0),
-		Danger = Color3.fromRGB(255, 110, 110),
+		Background = UITheme.Colors.Background,
+		Panel = UITheme.Colors.Surface,
+		PanelAlt = UITheme.Colors.SurfaceAlt,
+		Border = UITheme.Colors.Border,
+		HeaderBar = UITheme.Colors.Header,
+		Text = UITheme.Colors.Text,
+		Muted = UITheme.Colors.TextMuted,
+		Accent = UITheme.Colors.Accent,
+		AccentSoft = UITheme.Colors.AccentSoft,
+		Positive = UITheme.Colors.Success,
+		Warning = UITheme.Colors.Warning,
+		Danger = UITheme.Colors.Danger,
 	},
 	Transparency = {
-		Panel = 0.0,
-		PanelAlt = 0.04,
-		HeaderBar = 0.0,
+		Panel = UITheme.Opacity.Surface,
+		PanelAlt = UITheme.Opacity.SurfaceAlt,
+		HeaderBar = UITheme.Opacity.Header,
 	},
 	Typography = {
-		Title = Enum.Font.GothamBold,
-		Body = Enum.Font.GothamMedium,
-		Mono = Enum.Font.Code,
+		Title = UITypography.Fonts.Heading,
+		Body = UITypography.Fonts.Body,
+		Mono = UITypography.Fonts.Mono,
 	},
 	TypographySizes = {
-		Title = 20,
-		Subtitle = 14,
-		Body = 13,
-		Small = 11,
-		Mono = 11,
+		Title = UITypography.Sizes.H2,
+		Subtitle = UITypography.Sizes.H3,
+		Body = UITypography.Sizes.Body,
+		Small = UITypography.Sizes.BodySmall,
+		Mono = UITypography.Sizes.Mono,
 	},
 	Spacing = {
-		XS = 6,
-		S = 10,
-		M = 14,
-		L = 20,
-		XL = 28,
+		XS = UISpacing.Scale.XXS,
+		S = UISpacing.Scale.XS,
+		M = UISpacing.Scale.S,
+		L = UISpacing.Scale.M,
+		XL = UISpacing.Scale.L,
+		XXL = UISpacing.Scale.XL,
 	},
 	Radius = {
-		S = 6,
-		M = 10,
-		L = 14,
+		S = UITheme.Radius.S,
+		M = UITheme.Radius.M,
+		L = UITheme.Radius.L,
 	},
 }
 

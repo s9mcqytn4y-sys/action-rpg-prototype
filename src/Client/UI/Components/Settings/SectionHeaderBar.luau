@@ -8,6 +8,9 @@ local Roact = require(Packages:WaitForChild("Roact") :: ModuleScript)
 local Shared = ReplicatedStorage:WaitForChild("Shared") :: Folder
 local Theme = require(Shared:WaitForChild("Config"):WaitForChild("EndfieldTheme") :: ModuleScript)
 
+local Core = script.Parent.Parent:WaitForChild("Core") :: Folder
+local Text = require(Core:WaitForChild("Text") :: ModuleScript)
+
 type Props = {
 	Text: string,
 	LayoutOrder: number?,
@@ -36,14 +39,12 @@ function SectionHeaderBar:render()
 			BackgroundColor3 = Theme.Colors.Accent,
 			BorderSizePixel = 0,
 		}),
-		Label = Roact.createElement("TextLabel", {
-			BackgroundTransparency = 1,
+		Label = Roact.createElement(Text, {
+			Text = props.Text,
+			Variant = "H3",
+			Color = Theme.Colors.Text,
 			Position = UDim2.new(0, Theme.Spacing.S + 48, 0, 0),
 			Size = UDim2.new(1, -Theme.Spacing.S * 2, 1, 0),
-			Text = props.Text,
-			TextColor3 = Theme.Colors.Text,
-			TextSize = Theme.TypographySizes.Subtitle,
-			Font = Theme.Typography.Body,
 			TextXAlignment = Enum.TextXAlignment.Left,
 		}),
 	})

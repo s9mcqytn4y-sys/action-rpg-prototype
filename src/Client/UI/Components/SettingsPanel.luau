@@ -4,12 +4,12 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local GuiService = game:GetService("GuiService")
 local TweenService = game:GetService("TweenService")
-local Workspace = game:GetService("Workspace")
 
 local Packages = ReplicatedStorage.Packages :: Folder
 local Shared = ReplicatedStorage.Shared :: Folder
 
 local Roact = require(Packages.Roact :: ModuleScript)
+local RoactRodux = require(Packages:WaitForChild("Roact-Rodux") :: ModuleScript)
 local Janitor = require(Packages.Janitor :: ModuleScript)
 local Knit = require(Packages.Knit :: ModuleScript)
 
@@ -33,6 +33,13 @@ local SettingsPanel = Roact.Component:extend("SettingsPanel")
 type Props = {
 	Visible: boolean,
 	OnClose: () -> (),
+	Viewport: {
+		size: Vector2,
+		shortSide: number,
+		longSide: number,
+		className: string,
+		scale: number,
+	}?,
 }
 
 type State = {
@@ -44,7 +51,7 @@ type State = {
 	toast: {
 		text: string,
 		context: string?,
-		tone: "info" | "success" | "warning",
+		tone: "info" | "success" | "warning" | "danger",
 	}?,
 }
 
@@ -76,6 +83,14 @@ local function getPref(prefs, category: string, key: string)
 		return def
 	end
 	return nil
+end
+
+local function clampAvailable(available: number, minValue: number, maxValue: number): number
+	if available <= 0 then
+		return maxValue
+	end
+	local lower = math.min(minValue, available)
+	return math.clamp(available, lower, maxValue)
 end
 
 function SettingsPanel:init()
@@ -152,14 +167,6 @@ function SettingsPanel:didMount()
 	if self.props.Visible then
 		self:_open()
 	end
-
-	local camera = Workspace.CurrentCamera
-	if camera then
-		self:_updateScale(camera.ViewportSize)
-		self._janitor:Add(camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-			self:_updateScale(camera.ViewportSize)
-		end), "Disconnect")
-	end
 end
 
 function SettingsPanel:willUnmount()
@@ -179,7 +186,7 @@ function SettingsPanel:_resetDefaults()
 	self:_flash("Defaults restored", "System", "warning")
 end
 
-function SettingsPanel:_flash(message: string, context: string?, tone: "info" | "success" | "warning"?)
+function SettingsPanel:_flash(message: string, context: string?, tone: "info" | "success" | "warning" | "danger"?)
 	self:setState({
 		toast = {
 			text = message,
@@ -204,16 +211,6 @@ function SettingsPanel:_flash(message: string, context: string?, tone: "info" | 
 			GroupTransparency = 1,
 		}):Play()
 	end)
-end
-
-function SettingsPanel:_updateScale(viewport: Vector2)
-	local scale = self._scaleRef:getValue()
-	if not scale then
-		return
-	end
-	local target = math.min(viewport.X / 1020, viewport.Y / 600, 1)
-	target = math.clamp(target, 0.78, 1)
-	scale.Scale = target
 end
 
 function SettingsPanel:_open()
@@ -242,6 +239,7 @@ function SettingsPanel:_close()
 	if scale then
 		TweenService:Create(scale, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { Scale = 0.98 }):Play()
 	end
+	GuiService.AutoSelectGuiEnabled = false
 	task.delay(0.12, function()
 		self:setState({ isVisible = false })
 	end)
@@ -492,39 +490,79 @@ function SettingsPanel:render()
 		return nil
 	end
 	local toast = self.state.toast
-	local guiInset = GuiService:GetGuiInset()
+	local viewport = props.Viewport
+	local viewportSize = if viewport then viewport.size else Vector2.new(0, 0)
+	local viewportClass = if viewport then viewport.className else "Desktop"
+	local baseScale = if viewport then viewport.scale else 1
+
+	local isPhone = viewportClass == "Phone"
+	local isTablet = viewportClass == "Tablet"
+
+	local panelMaxWidth = 980
+	local panelMaxHeight = 560
+	local panelMinWidth = if isPhone then 360 else if isTablet then 640 else 760
+	local panelMinHeight = if isPhone then 300 else 440
+	local outerMargin = if isPhone then (Theme.Spacing.M * 2) else 40
+	local availableWidth = math.max(0, viewportSize.X - outerMargin)
+	local availableHeight = math.max(0, viewportSize.Y - outerMargin)
+	local panelWidth = if isPhone then availableWidth else clampAvailable(availableWidth, panelMinWidth, panelMaxWidth)
+	local panelHeight = if isPhone then availableHeight else clampAvailable(availableHeight, panelMinHeight, panelMaxHeight)
+	local panelMinConstraintWidth = math.min(panelMinWidth, panelWidth)
+	local panelMinConstraintHeight = math.min(panelMinHeight, panelHeight)
+	local panelMaxConstraintWidth = math.max(panelWidth, panelMinConstraintWidth)
+	local panelMaxConstraintHeight = math.max(panelHeight, panelMinConstraintHeight)
+
+	local headerHeight = if isPhone then 60 else 72
+	local bodyTop = headerHeight + 8
+	local bodyBottomInset = Theme.Spacing.L + Theme.Spacing.S
+	local bodyHeightOffset = bodyTop + bodyBottomInset
+	local sidebarIsTop = isPhone
+	local sidebarWidth = if sidebarIsTop then (panelWidth - Theme.Spacing.L * 2) else if isTablet then 160 else 180
+	local sidebarHeight = if sidebarIsTop then 44 else (panelHeight - bodyHeightOffset)
+	local sideInset = Theme.Spacing.L
+	local gutter = Theme.Spacing.M
+	local contentX = if sidebarIsTop then sideInset else sideInset + sidebarWidth + gutter
+	local contentTop = if sidebarIsTop then bodyTop + sidebarHeight + gutter else bodyTop
+	local contentWidthOffset = if sidebarIsTop then sideInset * 2 else contentX + sideInset
+	local contentHeightOffset = if sidebarIsTop then (contentTop + bodyBottomInset) else bodyHeightOffset
+
+	local toastWidth = if isPhone then 220 else 260
+	local toastX = if isPhone then -16 else -28
+	local toastY = if isPhone then 72 else 92
+
+	local navCount = #self._categories
+	local navItemWidth = if sidebarIsTop then math.max(64, math.floor((panelWidth - (sideInset * 2) - (Theme.Spacing.XS * (navCount - 1))) / navCount)) else 0
 
 	return Roact.createElement("Frame", {
 		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
 		ZIndex = 50,
 	}, {
-		Overlay = Roact.createElement("Frame", {
-			Size = UDim2.fromScale(1, 1),
-			BackgroundColor3 = Theme.Colors.Background,
-			BackgroundTransparency = 1,
-			BorderSizePixel = 0,
-			ZIndex = 50,
-		}),
 		Panel = Roact.createElement(CardSurface, {
-			Size = UDim2.fromOffset(920, 520),
-			Position = UDim2.new(0.5, 0, 0.5, math.floor(guiInset.Y + 6)),
+			Size = if isPhone
+				then UDim2.new(1, -(Theme.Spacing.M * 2), 1, -(Theme.Spacing.M * 2))
+				else UDim2.fromOffset(panelWidth, panelHeight),
+			Position = UDim2.new(0.5, 0, 0.5, 0),
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			LayoutOrder = 1,
 			ZIndex = 52,
 			Children = {
-				Scale = Roact.createElement("UIScale", {
+				BaseScale = Roact.createElement("UIScale", {
+					Scale = if isPhone then 1 else baseScale,
+				}),
+				AnimScale = Roact.createElement("UIScale", {
 					Scale = 1,
 					[Roact.Ref] = self._scaleRef,
 				}),
 				SizeConstraint = Roact.createElement("UISizeConstraint", {
-					MaxSize = Vector2.new(980, 560),
-					MinSize = Vector2.new(760, 440),
+					MaxSize = Vector2.new(panelMaxConstraintWidth, panelMaxConstraintHeight),
+					MinSize = Vector2.new(panelMinConstraintWidth, panelMinConstraintHeight),
 				}),
 				Header = Roact.createElement(PanelHeader, {
 					Title = "Settings",
 					Subtitle = "Graphics, Audio, Controls",
-					ShortcutHint = "F10 / P / ESC",
+					ShortcutHint = if isPhone then nil else "P",
+					Compact = isPhone,
 					OnClose = function()
 						props.OnClose()
 					end,
@@ -533,19 +571,23 @@ function SettingsPanel:render()
 					end,
 				}),
 				Sidebar = Roact.createElement(CardSurface, {
-					Position = UDim2.new(0, Theme.Spacing.L, 0, 84),
-					Size = UDim2.new(0, 180, 1, -110),
+					Position = if sidebarIsTop then UDim2.new(0, sideInset, 0, bodyTop) else UDim2.new(0, sideInset, 0, bodyTop),
+					Size = if sidebarIsTop
+						then UDim2.new(1, -(sideInset * 2), 0, sidebarHeight)
+						else UDim2.new(0, sidebarWidth, 1, -bodyHeightOffset),
 					Children = {
 					Layout = Roact.createElement("UIListLayout", {
 						Padding = UDim.new(0, Theme.Spacing.XS),
 						SortOrder = Enum.SortOrder.LayoutOrder,
-						FillDirection = Enum.FillDirection.Vertical,
+						FillDirection = if sidebarIsTop then Enum.FillDirection.Horizontal else Enum.FillDirection.Vertical,
+						HorizontalAlignment = if sidebarIsTop then Enum.HorizontalAlignment.Center else Enum.HorizontalAlignment.Left,
+						VerticalAlignment = if sidebarIsTop then Enum.VerticalAlignment.Center else Enum.VerticalAlignment.Top,
 					}),
 					Padding = Roact.createElement("UIPadding", {
-						PaddingTop = UDim.new(0, Theme.Spacing.S),
-						PaddingLeft = UDim.new(0, Theme.Spacing.M),
-						PaddingRight = UDim.new(0, Theme.Spacing.M),
-						PaddingBottom = UDim.new(0, Theme.Spacing.S),
+						PaddingTop = UDim.new(0, if sidebarIsTop then Theme.Spacing.XS else Theme.Spacing.S),
+						PaddingLeft = UDim.new(0, if sidebarIsTop then Theme.Spacing.S else Theme.Spacing.M),
+						PaddingRight = UDim.new(0, if sidebarIsTop then Theme.Spacing.S else Theme.Spacing.M),
+						PaddingBottom = UDim.new(0, if sidebarIsTop then Theme.Spacing.XS else Theme.Spacing.S),
 					}),
 					Sound = Roact.createElement(SidebarNavItem, {
 						Text = "Sound",
@@ -553,6 +595,8 @@ function SettingsPanel:render()
 						Active = self.state.activeCategory == "Sound",
 						LayoutOrder = 1,
 						Ref = self._navRefs.Sound,
+						Compact = sidebarIsTop,
+						Size = if sidebarIsTop then UDim2.new(0, navItemWidth, 1, 0) else nil,
 						OnActivated = function()
 							self:_setCategory("Sound")
 						end,
@@ -563,6 +607,8 @@ function SettingsPanel:render()
 						Active = self.state.activeCategory == "Camera",
 						LayoutOrder = 2,
 						Ref = self._navRefs.Camera,
+						Compact = sidebarIsTop,
+						Size = if sidebarIsTop then UDim2.new(0, navItemWidth, 1, 0) else nil,
 						OnActivated = function()
 							self:_setCategory("Camera")
 						end,
@@ -573,6 +619,8 @@ function SettingsPanel:render()
 						Active = self.state.activeCategory == "Display",
 						LayoutOrder = 3,
 						Ref = self._navRefs.Display,
+						Compact = sidebarIsTop,
+						Size = if sidebarIsTop then UDim2.new(0, navItemWidth, 1, 0) else nil,
 						OnActivated = function()
 							self:_setCategory("Display")
 						end,
@@ -583,6 +631,8 @@ function SettingsPanel:render()
 						Active = self.state.activeCategory == "Controls",
 						LayoutOrder = 4,
 						Ref = self._navRefs.Controls,
+						Compact = sidebarIsTop,
+						Size = if sidebarIsTop then UDim2.new(0, navItemWidth, 1, 0) else nil,
 						OnActivated = function()
 							self:_setCategory("Controls")
 						end,
@@ -593,6 +643,8 @@ function SettingsPanel:render()
 						Active = self.state.activeCategory == "Other",
 						LayoutOrder = 5,
 						Ref = self._navRefs.Other,
+						Compact = sidebarIsTop,
+						Size = if sidebarIsTop then UDim2.new(0, navItemWidth, 1, 0) else nil,
 						OnActivated = function()
 							self:_setCategory("Other")
 						end,
@@ -600,8 +652,8 @@ function SettingsPanel:render()
 				},
 				}),
 				ContentCard = Roact.createElement(CardSurface, {
-					Position = UDim2.new(0, 210, 0, 84),
-					Size = UDim2.new(1, -Theme.Spacing.L - 210, 1, -110),
+					Position = UDim2.new(0, contentX, 0, contentTop),
+					Size = UDim2.new(1, -contentWidthOffset, 1, -contentHeightOffset),
 					ZIndex = 52,
 					Children = {
 						Scroll = Roact.createElement("ScrollingFrame", {
@@ -610,7 +662,7 @@ function SettingsPanel:render()
 							BorderSizePixel = 0,
 							CanvasSize = UDim2.new(0, 0, 0, 0),
 							AutomaticCanvasSize = Enum.AutomaticSize.Y,
-							ScrollBarThickness = 8,
+							ScrollBarThickness = if isPhone then 6 else 8,
 							ScrollBarImageColor3 = Theme.Colors.Border,
 							ScrollingDirection = Enum.ScrollingDirection.Y,
 							ElasticBehavior = Enum.ElasticBehavior.WhenScrollable,
@@ -637,8 +689,8 @@ function SettingsPanel:render()
 		}),
 		Toast = Roact.createElement("CanvasGroup", {
 			AnchorPoint = Vector2.new(1, 0),
-			Position = UDim2.new(1, -28, 0, 92),
-			Size = UDim2.new(0, 260, 0, 40),
+			Position = UDim2.new(1, toastX, 0, toastY),
+			Size = UDim2.new(0, toastWidth, 0, 44),
 			GroupTransparency = 1,
 			BackgroundTransparency = 1,
 			[Roact.Ref] = self._toastRef,
@@ -666,4 +718,10 @@ function SettingsPanel:render()
 	})
 end
 
-return SettingsPanel
+local function mapStateToProps(state)
+	return {
+		Viewport = state.UI and state.UI.Viewport or nil,
+	}
+end
+
+return RoactRodux.connect({ "UI" }, mapStateToProps)(SettingsPanel)

@@ -13,6 +13,10 @@ local CameraConfig = require(Shared.Config.CameraConfig :: ModuleScript)
 local DebugConfig = require(Shared.Config.DebugConfig :: ModuleScript)
 local Metrics = require(Shared.Util.Metrics :: ModuleScript)
 
+local ClientRoot = script.Parent.Parent :: Folder
+local State = ClientRoot:WaitForChild("State") :: Folder
+local store = require(State:WaitForChild("Store") :: ModuleScript)
+
 type CameraConfig = typeof(CameraConfig)
 type Metrics = typeof(Metrics.new(false))
 
@@ -69,14 +73,15 @@ type ThirdPersonCameraImpl = ThirdPersonCamera & {
 	_lastCFrame: CFrame?,
 	_focusPosition: Vector3?,
 	_smoothedMove: Vector3,
+	_moveActive: boolean,
 	_focusHintPos: Vector3?,
 	_focusHintOffset: Vector3,
 
 	_mouseBehavior: Enum.MouseBehavior?,
 	_mouseIconEnabled: boolean?,
 
-	_freeLook: boolean,
 	_shoulderSide: number,
+	_menuOpen: boolean,
 
 	_lastInputType: Enum.UserInputType?,
 	_lastManualInputTime: number,
@@ -84,6 +89,12 @@ type ThirdPersonCameraImpl = ThirdPersonCamera & {
 	_gamepadZoomAxis: number,
 	_gamepadTriggerL2: number,
 	_gamepadTriggerR2: number,
+	_touchDelta: Vector2,
+	_touchSmoothed: Vector2,
+	_touchActive: boolean,
+	_lastTouchInputAt: number,
+	_mouseSmoothed: Vector2,
+	_mouseDeltaAccum: Vector2,
 
 	_raycastParams: RaycastParams,
 
@@ -121,6 +132,13 @@ local function clampDeltaVec2(delta: Vector2, maxDelta: number): Vector2
 		math.clamp(delta.X, -maxDelta, maxDelta),
 		math.clamp(delta.Y, -maxDelta, maxDelta)
 	)
+end
+
+local function toVector2(delta: any): Vector2
+	if typeof(delta) == "Vector3" then
+		return Vector2.new(delta.X, delta.Y)
+	end
+	return delta
 end
 
 local function applyDeadzone(delta: Vector2, deadzone: number): Vector2
@@ -185,14 +203,15 @@ function ThirdPersonCamera.new(metrics: Metrics): ThirdPersonCameraImpl
 		_lastCFrame = nil,
 		_focusPosition = nil,
 		_smoothedMove = Vector3.zero,
+		_moveActive = false,
 		_focusHintPos = nil,
 		_focusHintOffset = Vector3.zero,
 
 		_mouseBehavior = nil,
 		_mouseIconEnabled = nil,
 
-		_freeLook = false,
 		_shoulderSide = CameraConfig.ShoulderSide,
+		_menuOpen = false,
 
 		_lastInputType = nil,
 		_lastManualInputTime = 0,
@@ -200,6 +219,12 @@ function ThirdPersonCamera.new(metrics: Metrics): ThirdPersonCameraImpl
 		_gamepadZoomAxis = 0,
 		_gamepadTriggerL2 = 0,
 		_gamepadTriggerR2 = 0,
+		_touchDelta = Vector2.zero,
+		_touchSmoothed = Vector2.zero,
+		_touchActive = false,
+		_lastTouchInputAt = 0,
+		_mouseSmoothed = Vector2.zero,
+		_mouseDeltaAccum = Vector2.zero,
 
 		_raycastParams = raycastParams,
 	}, ThirdPersonCamera)
@@ -247,6 +272,21 @@ function ThirdPersonCamera:_getPreferredInputType(): Enum.UserInputType?
 	return selfImpl._lastInputType
 end
 
+function ThirdPersonCamera:_applyMouseMode()
+	local selfImpl = self :: ThirdPersonCameraImpl
+	if not UserInputService.MouseEnabled then
+		return
+	end
+
+	local showCursor = selfImpl._menuOpen
+	UserInputService.MouseIconEnabled = showCursor
+	if showCursor then
+		UserInputService.MouseBehavior = selfImpl._mouseBehavior or Enum.MouseBehavior.Default
+	else
+		UserInputService.MouseBehavior = selfImpl._config.GameplayMouseBehavior or Enum.MouseBehavior.LockCurrentPosition
+	end
+end
+
 function ThirdPersonCamera:Start()
 	local selfImpl = self :: ThirdPersonCameraImpl
 	if selfImpl._camera then
@@ -271,6 +311,28 @@ function ThirdPersonCamera:Start()
 		end), "Disconnect")
 	end
 
+	local function readMenuOpen(state: any): boolean
+		return state and state.UI and state.UI.MenuOpen == true
+	end
+
+	selfImpl._menuOpen = readMenuOpen(store:getState())
+	selfImpl:_applyMouseMode()
+	selfImpl._janitor:Add(store.changed:connect(function(newState)
+		local nextOpen = readMenuOpen(newState)
+		if nextOpen ~= selfImpl._menuOpen then
+			selfImpl._menuOpen = nextOpen
+			if nextOpen then
+				selfImpl._mouseDeltaAccum = Vector2.zero
+				selfImpl._mouseSmoothed = Vector2.zero
+				selfImpl._touchDelta = Vector2.zero
+				selfImpl._touchSmoothed = Vector2.zero
+				selfImpl._touchActive = false
+				selfImpl._gamepadLook = Vector2.zero
+			end
+			selfImpl:_applyMouseMode()
+		end
+	end), "disconnect")
+
 	selfImpl._janitor:Add(Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
 		selfImpl:_attachCamera(Workspace.CurrentCamera)
 	end), "Disconnect")
@@ -284,6 +346,10 @@ function ThirdPersonCamera:Start()
 		local isTouch = input.UserInputType == Enum.UserInputType.Touch
 		local isMouseWheel = input.UserInputType == Enum.UserInputType.MouseWheel
 		local isGamepad = input.UserInputType == Enum.UserInputType.Gamepad1
+
+		if selfImpl._menuOpen then
+			return
+		end
 
 		-- Zoom
 		if isMouseWheel then
@@ -316,53 +382,38 @@ function ThirdPersonCamera:Start()
 		end
 
 		-- Rotation input:
-		-- Mouse rotates ONLY while RMB free-look is held (handled in RenderStep to avoid jitter).
-		-- Touch drag rotates (typical mobile), UI blocks via gameProcessed.
+		-- Mouse movement rotates (desktop), touch drag rotates (mobile).
 		if isMouse then
+			selfImpl._mouseDeltaAccum += toVector2(input.Delta)
+			selfImpl._mouseDeltaAccum = clampDeltaVec2(selfImpl._mouseDeltaAccum, selfImpl._config.MaxMouseDelta)
 			return
 		end
 		if not isTouch then
 			return
 		end
 
-		local sensitivity: number
-		local maxDelta: number
-		local deadzone: number
-		if isTouch then
-			sensitivity = selfImpl._settings.TouchSensitivity
-			maxDelta = selfImpl._config.MaxTouchDelta
-			deadzone = selfImpl._config.TouchDeadzone
-		else
-			sensitivity = selfImpl._prefSensitivity * selfImpl._settingsSensitivityScale * selfImpl._config.FreeLookSensitivityMultiplier
-			maxDelta = selfImpl._config.MaxMouseDelta
-			deadzone = selfImpl._config.MouseDeadzone
-		end
+		local maxDelta = selfImpl._config.MaxTouchDelta
+		local deadzone = selfImpl._config.TouchDeadzone
 
-		local delta = clampDeltaVec2(input.Delta, maxDelta)
+		local delta = clampDeltaVec2(toVector2(input.Delta), maxDelta)
 		delta = applyDeadzone(delta, deadzone)
 
-		-- If it becomes zero after deadzone, do nothing (fix micro-jitter while RMB held).
 		if delta.X == 0 and delta.Y == 0 then
 			return
 		end
 
-		local invert = if selfImpl._prefInvertY then -1 else 1
-		selfImpl._yawTarget -= delta.X * sensitivity
-		selfImpl._pitchTarget -= delta.Y * sensitivity * invert
-		selfImpl._pitchTarget = math.clamp(selfImpl._pitchTarget, selfImpl._config.PitchMin, selfImpl._config.PitchMax)
+		selfImpl._touchActive = true
+		selfImpl._lastTouchInputAt = os.clock()
+		selfImpl._touchDelta += delta
+		selfImpl._touchDelta = clampDeltaVec2(selfImpl._touchDelta, maxDelta)
 		selfImpl._lastManualInputTime = os.clock()
 	end), "Disconnect")
 
-	-- RMB free-look begin
 	selfImpl._janitor:Add(UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
 		if gameProcessed then
 			return
 		end
-		if input.UserInputType == selfImpl._config.FreeLookMouseButton then
-			selfImpl._freeLook = true
-			if UserInputService.MouseEnabled then
-				UserInputService.MouseBehavior = selfImpl._config.FreeLookMouseBehavior
-			end
+		if selfImpl._menuOpen then
 			return
 		end
 
@@ -377,16 +428,14 @@ function ThirdPersonCamera:Start()
 		end
 	end), "Disconnect")
 
-	-- RMB free-look end
 	selfImpl._janitor:Add(UserInputService.InputEnded:Connect(function(input: InputObject, gameProcessed: boolean)
 		if gameProcessed then
 			return
 		end
-		if input.UserInputType == selfImpl._config.FreeLookMouseButton then
-			selfImpl._freeLook = false
-			if UserInputService.MouseEnabled then
-				UserInputService.MouseBehavior = selfImpl._mouseBehavior or Enum.MouseBehavior.Default
-			end
+		if input.UserInputType == Enum.UserInputType.Touch then
+			selfImpl._touchActive = false
+			selfImpl._touchDelta = Vector2.zero
+			selfImpl._touchSmoothed = Vector2.zero
 			return
 		end
 
@@ -574,20 +623,57 @@ function ThirdPersonCamera:_update(dt: number)
 		selfImpl._lastManualInputTime = os.clock()
 	end
 
-	-- Mouse free-look (RMB): use GetMouseDelta per-frame to avoid jitter.
-	if selfImpl._freeLook and UserInputService.MouseEnabled then
-		local delta = UserInputService:GetMouseDelta()
+	-- Mouse look: consume accumulated deltas for smoother feel.
+	if UserInputService.MouseEnabled and not selfImpl._menuOpen then
+		local delta = selfImpl._mouseDeltaAccum
+		selfImpl._mouseDeltaAccum = Vector2.zero
 		local maxDelta = selfImpl._config.MaxMouseDelta
 		local deadzone = selfImpl._config.MouseDeadzone
-		local sensitivity = selfImpl._prefSensitivity * selfImpl._settingsSensitivityScale * selfImpl._config.FreeLookSensitivityMultiplier
+		local sensitivity = selfImpl._prefSensitivity * selfImpl._settingsSensitivityScale * (selfImpl._config.MouseSensitivityMultiplier or 1)
 		delta = clampDeltaVec2(delta, maxDelta)
 		delta = applyDeadzone(delta, deadzone)
-		if delta.X ~= 0 or delta.Y ~= 0 then
-			local invert = if selfImpl._prefInvertY then -1 else 1
-			selfImpl._yawTarget -= delta.X * sensitivity
-			selfImpl._pitchTarget -= delta.Y * sensitivity * invert
-			selfImpl._pitchTarget = math.clamp(selfImpl._pitchTarget, selfImpl._config.PitchMin, selfImpl._config.PitchMax)
-			selfImpl._lastManualInputTime = os.clock()
+
+		local now = os.clock()
+		local grace = selfImpl._config.MouseInputGrace or 0.08
+		if delta.Magnitude == 0 and (now - selfImpl._lastManualInputTime) > grace then
+			selfImpl._mouseSmoothed = Vector2.zero
+		else
+			local alpha = expAlpha(selfImpl._config.MouseInputSmoothingSpeed or 18, dt)
+			selfImpl._mouseSmoothed = selfImpl._mouseSmoothed + (delta - selfImpl._mouseSmoothed) * alpha
+			if selfImpl._mouseSmoothed.Magnitude > 0 then
+				local invert = if selfImpl._prefInvertY then -1 else 1
+				selfImpl._yawTarget -= selfImpl._mouseSmoothed.X * sensitivity
+				selfImpl._pitchTarget -= selfImpl._mouseSmoothed.Y * sensitivity * invert
+				selfImpl._pitchTarget = math.clamp(selfImpl._pitchTarget, selfImpl._config.PitchMin, selfImpl._config.PitchMax)
+				selfImpl._lastManualInputTime = now
+			end
+		end
+	else
+		selfImpl._mouseSmoothed = Vector2.zero
+		selfImpl._mouseDeltaAccum = Vector2.zero
+	end
+
+	-- Touch input smoothing to reduce jitter during drag
+	local touchDelta = selfImpl._touchDelta
+	local now = os.clock()
+	local touchGrace = selfImpl._config.TouchInputGrace or 0.08
+	if not selfImpl._touchActive and (now - selfImpl._lastTouchInputAt) > touchGrace then
+		selfImpl._touchSmoothed = Vector2.zero
+		selfImpl._touchDelta = Vector2.zero
+	else
+		if touchDelta.Magnitude > 0 or selfImpl._touchSmoothed.Magnitude > 0 then
+			selfImpl._touchDelta = Vector2.zero
+			local alpha = expAlpha(selfImpl._config.TouchInputSmoothingSpeed, dt)
+			selfImpl._touchSmoothed = selfImpl._touchSmoothed + (touchDelta - selfImpl._touchSmoothed) * alpha
+
+			if selfImpl._touchSmoothed.Magnitude > 0 then
+				local sensitivity = selfImpl._settings.TouchSensitivity
+				local invert = if selfImpl._prefInvertY then -1 else 1
+				selfImpl._yawTarget -= selfImpl._touchSmoothed.X * sensitivity
+				selfImpl._pitchTarget -= selfImpl._touchSmoothed.Y * sensitivity * invert
+				selfImpl._pitchTarget = math.clamp(selfImpl._pitchTarget, selfImpl._config.PitchMin, selfImpl._config.PitchMax)
+				selfImpl._lastManualInputTime = now
+			end
 		end
 	end
 
@@ -599,12 +685,23 @@ function ThirdPersonCamera:_update(dt: number)
 		)
 	end
 
+	local now = os.clock()
+	if selfImpl._touchActive then
+		selfImpl._lastManualInputTime = now
+	end
+
+	local manualGrace = (now - selfImpl._lastManualInputTime) < selfImpl._config.ManualInputGrace
+	local mouseActive = selfImpl._mouseDeltaAccum.Magnitude > 0 or selfImpl._mouseSmoothed.Magnitude > 0
+	local touchActive = selfImpl._touchActive
+		or selfImpl._touchDelta.Magnitude > 0
+		or selfImpl._touchSmoothed.Magnitude > 0
+	local manualActive = mouseActive or touchActive
+
 	-- AUTO-ALIGN (comfort-safe):
-	-- 1) Disabled while RMB free-look.
+	-- 1) Disabled while manual look.
 	-- 2) Disabled for backward movement (press S) to prevent 180 snap.
 	-- 3) Rate-limited to prevent fast spinning.
-	local manualGrace = (os.clock() - selfImpl._lastManualInputTime) < selfImpl._config.ManualInputGrace
-	if selfImpl._config.AutoAlignEnabled and not selfImpl._freeLook and not hasGamepadLook and not manualGrace then
+	if selfImpl._config.AutoAlignEnabled and not manualActive and not hasGamepadLook and not manualGrace then
 		local humanoid = character.humanoid
 		local moveDir = humanoid.MoveDirection
 		local flatMove = Vector3.new(moveDir.X, 0, moveDir.Z)
@@ -616,7 +713,19 @@ function ThirdPersonCamera:_update(dt: number)
 
 		local _, rootYaw, _ = root.CFrame:ToOrientation()
 		local rootForward = Vector3.new(root.CFrame.LookVector.X, 0, root.CFrame.LookVector.Z)
-		local isMoving = flatMove.Magnitude > selfImpl._config.AutoAlignMoveThreshold
+		local moveMag = flatMove.Magnitude
+		local startThreshold = selfImpl._config.AutoAlignMoveThreshold
+		local stopThreshold = selfImpl._config.AutoAlignMoveStopThreshold or (startThreshold * 0.6)
+		if selfImpl._moveActive then
+			if moveMag < stopThreshold then
+				selfImpl._moveActive = false
+			end
+		else
+			if moveMag > startThreshold then
+				selfImpl._moveActive = true
+			end
+		end
+		local isMoving = selfImpl._moveActive
 		local movingBackToCamera = false
 		if isMoving and camForward.Magnitude > 1e-4 then
 			local dotCam = flatMove.Unit:Dot(camForward.Unit)
@@ -648,7 +757,7 @@ function ThirdPersonCamera:_update(dt: number)
 			else
 				desiredYaw = rootYaw
 			end
-
+			
 			-- First: smooth toward desiredYaw
 			local speed = if useMoveAlign then selfImpl._config.AutoAlignSpeed else selfImpl._config.AutoAlignIdleSpeed
 			local a = expAlpha(speed, dt)

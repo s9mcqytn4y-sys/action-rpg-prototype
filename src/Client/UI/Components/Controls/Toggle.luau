@@ -1,3 +1,5 @@
+--!strict
+
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Packages = ReplicatedStorage:WaitForChild("Packages") :: Folder
 local Roact = require(Packages:WaitForChild("Roact") :: ModuleScript)

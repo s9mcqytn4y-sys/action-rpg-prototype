@@ -8,6 +8,11 @@ local Roact = require(Packages:WaitForChild("Roact") :: ModuleScript)
 local Shared = ReplicatedStorage:WaitForChild("Shared") :: Folder
 local Theme = require(Shared:WaitForChild("Config"):WaitForChild("EndfieldTheme") :: ModuleScript)
 
+local Core = script.Parent.Parent:WaitForChild("Core") :: Folder
+local Surface = require(Core:WaitForChild("Surface") :: ModuleScript)
+local Text = require(Core:WaitForChild("Text") :: ModuleScript)
+local Badge = require(Core:WaitForChild("Badge") :: ModuleScript)
+
 local Controls = script.Parent.Parent:WaitForChild("Controls") :: Folder
 local Slider = require(Controls:WaitForChild("Slider") :: ModuleScript)
 
@@ -34,53 +39,44 @@ end
 
 function SliderRow:render()
 	local props = self.props :: Props
-return Roact.createElement("Frame", {
-		Size = UDim2.new(1, 0, 0, 56),
+	return Roact.createElement(Surface, {
+		Size = UDim2.new(1, 0, 0, 58),
 		BackgroundColor3 = Theme.Colors.PanelAlt,
 		BackgroundTransparency = 0,
-		BorderSizePixel = 0,
+		CornerRadius = Theme.Radius.S,
+		StrokeTransparency = 0.4,
 		LayoutOrder = props.LayoutOrder,
-	}, {
-		Corner = Roact.createElement("UICorner", {
-			CornerRadius = UDim.new(0, Theme.Radius.S),
-		}),
-		Stroke = Roact.createElement("UIStroke", {
-			Color = Theme.Colors.Border,
-			Transparency = 0.35,
-			Thickness = 1,
-		}),
-		Label = Roact.createElement("TextLabel", {
-			BackgroundTransparency = 1,
-			Position = UDim2.new(0, Theme.Spacing.M, 0, 6),
-			Size = UDim2.new(0.62, 0, 0, 18),
-			Text = props.Label,
-			TextColor3 = Theme.Colors.Text,
-			TextSize = Theme.TypographySizes.Body,
-			Font = Theme.Typography.Body,
-			TextXAlignment = Enum.TextXAlignment.Left,
-		}),
-		Value = Roact.createElement("TextLabel", {
-			BackgroundTransparency = 1,
-			Position = UDim2.new(0.7, 0, 0, 6),
-			Size = UDim2.new(0.3, -Theme.Spacing.M, 0, 18),
-			Text = formatValue(props.Value),
-			TextColor3 = Theme.Colors.Accent,
-			TextSize = Theme.TypographySizes.Mono,
-			Font = Theme.Typography.Mono,
-			TextXAlignment = Enum.TextXAlignment.Right,
-		}),
-		Slider = Roact.createElement("Frame", {
-			BackgroundTransparency = 1,
-			Position = UDim2.new(0, Theme.Spacing.M, 0, 30),
-			Size = UDim2.new(1, -Theme.Spacing.M * 2, 0, 26),
-		}, {
-			Control = Roact.createElement(Slider, {
-				Min = props.Range.Min,
-				Max = props.Range.Max,
-				Value = props.Value,
-				OnChanged = props.OnChanged,
+		Children = {
+			Label = Roact.createElement(Text, {
+				Text = props.Label,
+				Variant = "Body",
+				Color = Theme.Colors.Text,
+				Position = UDim2.new(0, Theme.Spacing.M, 0, 6),
+				Size = UDim2.new(0.62, 0, 0, 18),
+				TextXAlignment = Enum.TextXAlignment.Left,
 			}),
-		}),
+			Value = Roact.createElement(Badge, {
+				Text = formatValue(props.Value),
+				Position = UDim2.new(1, -Theme.Spacing.M, 0, 6),
+				AnchorPoint = Vector2.new(1, 0),
+				Size = UDim2.new(0, 62, 0, 18),
+				TextColor3 = Theme.Colors.Accent,
+				BackgroundColor3 = Theme.Colors.AccentSoft,
+				BackgroundTransparency = 0.25,
+			}),
+			Slider = Roact.createElement("Frame", {
+				BackgroundTransparency = 1,
+				Position = UDim2.new(0, Theme.Spacing.M, 0, 30),
+				Size = UDim2.new(1, -Theme.Spacing.M * 2, 0, 26),
+			}, {
+				Control = Roact.createElement(Slider, {
+					Min = props.Range.Min,
+					Max = props.Range.Max,
+					Value = props.Value,
+					OnChanged = props.OnChanged,
+				}),
+			}),
+		},
 	})
 end
 

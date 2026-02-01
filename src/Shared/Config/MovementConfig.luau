@@ -15,9 +15,9 @@ export type MovementConfig = {
 }
 
 local MovementConfig: MovementConfig = {
-	MoveDeadzone = 0.05,
+	MoveDeadzone = 0.07,
 
-	TurnSmoothingSpeed = 14.0,
+	TurnSmoothingSpeed = 12.0,
 
 	AutoRotate = false,
 

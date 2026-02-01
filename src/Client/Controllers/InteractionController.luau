@@ -45,6 +45,9 @@ type InteractionControllerImpl = InteractionController & {
 	_currentTarget: Instance?,
 	_lastRequestAt: number,
 	_scanning: boolean,
+	_pendingTarget: Instance?,
+	_pendingSince: number,
+	_lostSince: number,
 	_tagObserver: any?,
 	_lifecycle: any?,
 	_thirdPerson: any?,
@@ -59,6 +62,7 @@ type InteractionControllerImpl = InteractionController & {
 	_getTargetPosition: (self: InteractionControllerImpl, target: Instance) -> Vector3?,
 	_hasLineOfSight: (self: InteractionControllerImpl, origin: Vector3, target: Instance, position: Vector3) -> boolean,
 	_updatePromptText: (self: InteractionControllerImpl, target: Instance?) -> (),
+	_isValidInteractable: (self: InteractionControllerImpl, target: Instance?) -> boolean,
 	_logSnapshot: (self: InteractionControllerImpl, reason: string) -> (),
 }
 
@@ -82,6 +86,9 @@ function InteractionController:KnitInit()
 	selfImpl._currentTarget = nil
 	selfImpl._lastRequestAt = -math.huge
 	selfImpl._scanning = false
+	selfImpl._pendingTarget = nil
+	selfImpl._pendingSince = 0
+	selfImpl._lostSince = 0
 	selfImpl._tagObserver = nil
 	selfImpl._lifecycle = nil
 	selfImpl._thirdPerson = nil
@@ -237,6 +244,16 @@ function InteractionController:_scanOnce()
 		return
 	end
 
+	if selfImpl._currentTarget then
+		local current = selfImpl._currentTarget
+		if not selfImpl:_isValidInteractable(current) or not selfImpl:_getTargetPosition(current) then
+			selfImpl._pendingTarget = nil
+			selfImpl._pendingSince = 0
+			selfImpl._lostSince = 0
+			selfImpl:_setTarget(nil)
+		end
+	end
+
 	local origin = state.root.Position
 	local candidates: { Instance }
 	if selfImpl._tagObserver then
@@ -248,7 +265,7 @@ function InteractionController:_scanOnce()
 	local bestTarget = nil
 	local bestDist = math.huge
 	for _, candidate in candidates do
-		if candidate and candidate:IsDescendantOf(workspace) then
+		if candidate and selfImpl:_isValidInteractable(candidate) then
 			local pos = selfImpl:_getTargetPosition(candidate)
 			if pos then
 				local dist = (pos - origin).Magnitude
@@ -265,16 +282,55 @@ function InteractionController:_scanOnce()
 		end
 	end
 
-	selfImpl:_setTarget(bestTarget)
+	local now = os.clock()
+	if bestTarget == nil then
+		selfImpl._pendingTarget = nil
+		if selfImpl._currentTarget then
+			if selfImpl._lostSince == 0 then
+				selfImpl._lostSince = now
+			end
+			if now - selfImpl._lostSince >= InteractionConfig.TargetReleaseTimeSec then
+				selfImpl:_setTarget(nil)
+			end
+		else
+			selfImpl:_setTarget(nil)
+		end
+		return
+	end
+
+	selfImpl._lostSince = 0
+	if bestTarget == selfImpl._currentTarget then
+		selfImpl._pendingTarget = nil
+		selfImpl._pendingSince = 0
+		return
+	end
+
+	if bestTarget ~= selfImpl._pendingTarget then
+		selfImpl._pendingTarget = bestTarget
+		selfImpl._pendingSince = now
+		return
+	end
+
+	if now - selfImpl._pendingSince >= InteractionConfig.TargetAcquireTimeSec then
+		selfImpl:_setTarget(bestTarget)
+	end
 end
 
 function InteractionController:_setTarget(target: Instance?)
 	local selfImpl = self :: InteractionControllerImpl
+	if target and not selfImpl:_isValidInteractable(target) then
+		target = nil
+	end
 	if selfImpl._currentTarget == target then
 		return
 	end
+	if target == nil then
+		selfImpl._pendingTarget = nil
+		selfImpl._pendingSince = 0
+	end
 
 	selfImpl._currentTarget = target
+	selfImpl._lostSince = 0
 	selfImpl._metrics:Increment("targetChangeCount", 1)
 	if selfImpl._prompt then
 		selfImpl._prompt:SetAdornee(target)
@@ -303,6 +359,18 @@ function InteractionController:_tryInteract()
 	selfImpl._lastRequestAt = now
 	selfImpl._metrics:Increment("interactRequestCount", 1)
 	selfImpl._remote:FireServer(target)
+end
+
+function InteractionController:_isValidInteractable(target: Instance?): boolean
+	local selfImpl = self :: InteractionControllerImpl
+	if not target then
+		return false
+	end
+	if not target:IsDescendantOf(workspace) then
+		return false
+	end
+	-- CollectionService is the source of truth for tags.
+	return CollectionService:HasTag(target, Tags.Interactable)
 end
 
 function InteractionController:_getTargetPosition(target: Instance): Vector3?

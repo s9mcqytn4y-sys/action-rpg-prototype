@@ -196,6 +196,9 @@ end
 
 function InteractionPrompt:SetVisible(isVisible: boolean)
 	self._gui.Enabled = true
+	if not isVisible then
+		self._gui.Adornee = nil
+	end
 	local targetTransparency = if isVisible then Theme.Transparency.PanelAlt else InteractionConfig.PromptHiddenTransparency
 	local labelTransparency = if isVisible then 0 else InteractionConfig.PromptHiddenTransparency
 	local shadowTransparency = if isVisible then 0.6 else 1

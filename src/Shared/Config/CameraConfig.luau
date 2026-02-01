@@ -22,8 +22,8 @@ local CameraConfig = {
 	-- Offsets
 	-- ShoulderOffset is in camera basis (right/up/back).
 	-- Z positive = behind the focus (Roblox forward = -Z).
-	ShoulderOffset = Vector3.new(1.6, 0.0, 0.0),
-	FocusOffset = Vector3.new(0.0, 2.2, 0.0),
+	ShoulderOffset = Vector3.new(1.3, 0.0, 0.0),
+	FocusOffset = Vector3.new(0.0, 2.0, 0.0),
 	ShoulderSide = 1, -- 1 = right, -1 = left
 
 	-- Pitch
@@ -32,17 +32,18 @@ local CameraConfig = {
 	PitchMax = math.rad(25),
 
 	-- Smoothing (dt-stable)
-	RotationSmoothingSpeed = 9.5, -- softer for comfort
-	CFrameSmoothingSpeed = 14.0,
-	DistanceSmoothingSpeed = 14.0,
-	FocusSmoothingSpeed = 16.0,
-	MoveDirectionSmoothingSpeed = 12.0,
+	RotationSmoothingSpeed = 9.5, -- slightly snappier
+	CFrameSmoothingSpeed = 13.0,
+	DistanceSmoothingSpeed = 11.0,
+	FocusSmoothingSpeed = 15.0,
+	MoveDirectionSmoothingSpeed = 7.5,
 
 	-- Auto alignment (comfort tuned)
-	AutoAlignMoveThreshold = 0.25,
-	AutoAlignSpeed = 2.1,     -- slower: reduces nausea
-	AutoAlignIdleSpeed = 1.1, -- gentle recenter
-	AutoAlignMaxYawRateDeg = 60, -- safety cap (deg/sec)
+	AutoAlignMoveThreshold = 0.35,
+	AutoAlignMoveStopThreshold = 0.12,
+	AutoAlignSpeed = 1.35,     -- snappier but still soft
+	AutoAlignIdleSpeed = 0.7, -- gentle recenter
+	AutoAlignMaxYawRateDeg = 40, -- safety cap (deg/sec)
 
 	-- Backward movement handling:
 	-- If moving opposite to character forward (dot < threshold), DON'T align to movement.
@@ -54,28 +55,29 @@ local CameraConfig = {
 	CollisionBuffer = 0.25,
 
 	-- Input clamp (prevents spikes)
-	MaxMouseDelta = 28,
-	MaxTouchDelta = 70,
+	MaxMouseDelta = 24,
+	MaxTouchDelta = 60,
 
 	-- Input deadzone (fix micro-jitter)
-	MouseDeadzone = 0.3, -- px (ignore tiny deltas)
-	TouchDeadzone = 0.5,  -- px
-	ManualInputGrace = 0.35, -- seconds to suppress auto-align after manual input
+	MouseDeadzone = 0.5, -- px (ignore tiny deltas)
+	TouchDeadzone = 1.2,  -- px
+	TouchInputSmoothingSpeed = 15.0, -- higher = faster response
+	TouchInputGrace = 0.1,
+	MouseInputSmoothingSpeed = 18.0,
+	MouseInputGrace = 0.09,
+	ManualInputGrace = 0.6, -- seconds to suppress auto-align after manual input
 
 	-- Sensitivity
-	Sensitivity = 0.0018,
+	Sensitivity = 0.0022,
 	TouchSensitivity = 0.0035,
 	GamepadSensitivity = 2.8, -- radians/sec at full deflection
 	GamepadDeadzone = 0.12,
 	GamepadResponseExponent = 1.4,
 
-	-- Free-look binding (RMB). LMB stays UI-safe.
-	FreeLookMouseButton = Enum.UserInputType.MouseButton2,
-
-	-- Comfort mouse behavior while freelook:
+	-- Mouse behavior while gameplay camera is active (cursor hidden).
 	-- LockCurrentPosition keeps cursor stable and prevents edge clamping issues.
-	FreeLookMouseBehavior = Enum.MouseBehavior.LockCurrentPosition,
-	FreeLookSensitivityMultiplier = 0.8,
+	GameplayMouseBehavior = Enum.MouseBehavior.LockCurrentPosition,
+	MouseSensitivityMultiplier = 1.0,
 
 	-- Shoulder swap (optional)
 	ShoulderSwapKey = Enum.KeyCode.Q,
@@ -95,9 +97,11 @@ local CameraConfig = {
 	MotionBlur = {
 		Enabled = true,
 		MinSize = 0,
-		MaxSize = 12,
-		LinearVelocityScale = 0.015, -- studs/sec -> blur size
-		RotVelocityScale = 0.45, -- rad/sec -> blur size
+		MaxSize = 20,
+		LinearVelocityScale = 0.018, -- studs/sec -> blur size
+		RotVelocityScale = 0.85, -- rad/sec -> blur size
+		AccelScale = 0.005, -- boosts blur on sudden speed changes
+		ResponseGamma = 0.85, -- <1 = stronger low-speed blur
 		SmoothingSpeed = 10.0,
 		QualityLevelCutoff = Enum.QualityLevel.Level02, -- disable if <= this
 	},
