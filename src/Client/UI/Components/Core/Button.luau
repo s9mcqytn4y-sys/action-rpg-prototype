@@ -82,11 +82,9 @@ function Button:render()
 	local colors = getColors(variant, disabled)
 	local shortcut = props.Shortcut
 	local showShortcut = shortcut ~= nil and UserInputService.KeyboardEnabled and not UserInputService.TouchEnabled
-	local badgeBackground = if variant == "Ghost" then UITheme.Colors.SurfaceAlt else colors.Background
-	local badgeTransparency = if variant == "Ghost"
-		then 0.2
-		else math.clamp(colors.BackgroundTransparency + 0.15, 0, 0.35)
-	local badgeText = if variant == "Primary" or variant == "Danger" then UITheme.Colors.Background else colors.Text
+	local badgeBackground = UITheme.Colors.Accent
+	local badgeTransparency = 0
+	local badgeText = UITheme.Colors.Background
 
 	return Roact.createElement("TextButton", {
 		Size = props.Size or UDim2.new(0, 120, 0, 36),
@@ -130,16 +128,17 @@ function Button:render()
 		Shortcut = showShortcut and Roact.createElement(Badge, {
 			Text = shortcut :: string,
 			AnchorPoint = Vector2.new(1, 0),
-			Position = UDim2.new(1, -6, 0, 6),
-			Size = UDim2.new(0, math.clamp(14 + (#(shortcut :: string) * 6), 22, 60), 0, 16),
-			ZIndex = (props.ZIndex or 1) + 1,
+			Position = UDim2.new(1, -2, 0, -4),
+			Size = UDim2.new(0, math.clamp(14 + (#(shortcut :: string) * 6), 18, 48), 0, 16),
+			ZIndex = (props.ZIndex or 1) + 2,
 			BackgroundColor3 = badgeBackground,
 			BackgroundTransparency = badgeTransparency,
 			TextColor3 = badgeText,
-			TextSize = 10,
-			Font = UITypography.Fonts.Mono,
-			StrokeTransparency = 1,
-			CornerRadius = UITheme.Radius.XS,
+			TextSize = 9,
+			Font = UITypography.Fonts.Emphasis,
+			StrokeColor = UITheme.Colors.Border,
+			StrokeTransparency = 0.4,
+			CornerRadius = 999,
 		}) or nil,
 	})
 end

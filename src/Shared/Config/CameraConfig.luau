@@ -22,9 +22,13 @@ local CameraConfig = {
 	-- Offsets
 	-- ShoulderOffset is in camera basis (right/up/back).
 	-- Z positive = behind the focus (Roblox forward = -Z).
-	ShoulderOffset = Vector3.new(1.3, 0.0, 0.0),
+	ShoulderOffset = Vector3.new(1.45, 0.0, 0.0),
 	FocusOffset = Vector3.new(0.0, 2.0, 0.0),
 	ShoulderSide = 1, -- 1 = right, -1 = left
+	ShoulderSwapSpeed = 12.0,
+	ShoulderCollisionEnabled = true,
+	ShoulderCollisionBuffer = 0.25,
+	ShoulderCollisionSmoothingSpeed = 16.0,
 
 	-- Pitch
 	DefaultPitch = math.rad(-10),
@@ -32,11 +36,12 @@ local CameraConfig = {
 	PitchMax = math.rad(25),
 
 	-- Smoothing (dt-stable)
-	RotationSmoothingSpeed = 9.5, -- slightly snappier
-	CFrameSmoothingSpeed = 13.0,
-	DistanceSmoothingSpeed = 11.0,
-	FocusSmoothingSpeed = 15.0,
-	MoveDirectionSmoothingSpeed = 7.5,
+	RotationSmoothingSpeed = 10.5, -- smoother but still responsive
+	CFrameSmoothingSpeed = 15.0,
+	DistanceSmoothingSpeed = 12.5,
+	DistanceCollisionSmoothingSpeed = 20.0,
+	FocusSmoothingSpeed = 16.0,
+	MoveDirectionSmoothingSpeed = 8.5,
 
 	-- Auto alignment (comfort tuned)
 	AutoAlignMoveThreshold = 0.35,
@@ -61,9 +66,9 @@ local CameraConfig = {
 	-- Input deadzone (fix micro-jitter)
 	MouseDeadzone = 0.5, -- px (ignore tiny deltas)
 	TouchDeadzone = 1.2,  -- px
-	TouchInputSmoothingSpeed = 15.0, -- higher = faster response
+	TouchInputSmoothingSpeed = 18.0, -- higher = faster response
 	TouchInputGrace = 0.1,
-	MouseInputSmoothingSpeed = 18.0,
+	MouseInputSmoothingSpeed = 19.5,
 	MouseInputGrace = 0.09,
 	ManualInputGrace = 0.6, -- seconds to suppress auto-align after manual input
 
@@ -81,13 +86,13 @@ local CameraConfig = {
 
 	-- Shoulder swap (optional)
 	ShoulderSwapKey = Enum.KeyCode.Q,
-	ShoulderSwapGamepadButton = Enum.KeyCode.ButtonR1,
+	ShoulderSwapGamepadButton = Enum.KeyCode.ButtonL1,
 
 	-- Auto align toggle
 	AutoAlignEnabled = true,
 
 	-- Interaction focus hint (subtle nudge toward interactable)
-	InteractionFocusEnabled = false,
+	InteractionFocusEnabled = true,
 	InteractionFocusWeight = 0.1,
 	InteractionFocusMaxOffset = 0.8,
 	InteractionFocusSmoothingSpeed = 10.0,

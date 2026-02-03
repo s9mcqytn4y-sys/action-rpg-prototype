@@ -1,7 +1,11 @@
+local InputConfig = require(script.Parent:WaitForChild("InputConfig") :: ModuleScript)
+
 local GameConfig = {
 	Profile = {
 		StoreName = "ActionRPGProfile",
 		KeyPrefix = "Player_",
+		UseMockInStudio = true,
+		KickOnLoadFail = true,
 	},
 	Stamina = {
 		Max = 100,
@@ -21,15 +25,7 @@ local GameConfig = {
 			DrainMultiplier = 1,
 			RegenDelayBonus = 0,
 		},
-		Input = {
-			SprintHoldKey = Enum.KeyCode.LeftShift,
-			SprintToggleKey = Enum.KeyCode.LeftControl,
-			DodgeKey = Enum.KeyCode.Q,
-			HeavyKey = Enum.KeyCode.F,
-			GamepadSprint = Enum.KeyCode.ButtonL3,
-			GamepadDodge = Enum.KeyCode.ButtonB,
-			GamepadHeavy = Enum.KeyCode.ButtonX,
-		},
+		Input = InputConfig.Stamina,
 	},
 	Sprint = {
 		SpeedMultiplier = 1.6,

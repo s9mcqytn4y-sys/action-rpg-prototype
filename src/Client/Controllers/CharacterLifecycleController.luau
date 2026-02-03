@@ -143,6 +143,10 @@ function CharacterLifecycleController:_bindCharacter(character: Model, humanoid:
 	selfImpl:_cleanupCharacter("rebind")
 
 	local animator = humanoid:FindFirstChildOfClass("Animator") :: Animator?
+	if not animator then
+		animator = Instance.new("Animator")
+		animator.Parent = humanoid
+	end
 	selfImpl._state = {
 		character = character,
 		humanoid = humanoid,

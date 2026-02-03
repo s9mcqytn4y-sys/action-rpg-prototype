@@ -1,5 +1,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local StarterGui = game:GetService("StarterGui")
 
 local Packages = ReplicatedStorage:WaitForChild("Packages") :: Folder
 local Knit = require(Packages:WaitForChild("Knit") :: ModuleScript)
@@ -9,6 +11,12 @@ local RoactRodux = require(Packages:WaitForChild("Roact-Rodux") :: ModuleScript)
 local parent = script.Parent
 if not parent then
 	error("ClientInit must be parented under StarterPlayerScripts")
+end
+
+if RunService:IsStudio() then
+	pcall(function()
+		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Topbar, false)
+	end)
 end
 
 local Controllers = parent:WaitForChild("Controllers") :: Folder

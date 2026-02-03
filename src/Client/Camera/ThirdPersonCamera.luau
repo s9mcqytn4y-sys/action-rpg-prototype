@@ -32,6 +32,7 @@ export type ThirdPersonCamera = {
 	BindCharacter: (self: ThirdPersonCamera, character: Model?) -> (),
 	GetCameraCFrame: (self: ThirdPersonCamera) -> CFrame?,
 	ApplySettings: (self: ThirdPersonCamera, settings: CameraSettings) -> (),
+	AddImpulse: (self: ThirdPersonCamera, rotation: Vector3?, offset: Vector3?, decaySpeed: number?) -> (),
 	_getCameraBasis: (self: ThirdPersonCamera) -> CFrame,
 	_update: (self: ThirdPersonCamera, dt: number) -> (),
 }
@@ -81,6 +82,8 @@ type ThirdPersonCameraImpl = ThirdPersonCamera & {
 	_mouseIconEnabled: boolean?,
 
 	_shoulderSide: number,
+	_shoulderSideTarget: number,
+	_shoulderOffsetX: number,
 	_menuOpen: boolean,
 
 	_lastInputType: Enum.UserInputType?,
@@ -97,8 +100,11 @@ type ThirdPersonCameraImpl = ThirdPersonCamera & {
 	_mouseDeltaAccum: Vector2,
 
 	_raycastParams: RaycastParams,
-
+	_impulseRot: Vector3,
+	_impulseOffset: Vector3,
+	_impulseDecaySpeed: number,
 	SetFocusHint: (self: ThirdPersonCamera, position: Vector3?) -> (),
+	AddImpulse: (self: ThirdPersonCameraImpl, rotation: Vector3?, offset: Vector3?, decaySpeed: number?) -> (),
 }
 
 local ThirdPersonCamera = {}
@@ -211,6 +217,8 @@ function ThirdPersonCamera.new(metrics: Metrics): ThirdPersonCameraImpl
 		_mouseIconEnabled = nil,
 
 		_shoulderSide = CameraConfig.ShoulderSide,
+		_shoulderSideTarget = CameraConfig.ShoulderSide,
+		_shoulderOffsetX = CameraConfig.ShoulderOffset.X * CameraConfig.ShoulderSide,
 		_menuOpen = false,
 
 		_lastInputType = nil,
@@ -227,6 +235,9 @@ function ThirdPersonCamera.new(metrics: Metrics): ThirdPersonCameraImpl
 		_mouseDeltaAccum = Vector2.zero,
 
 		_raycastParams = raycastParams,
+		_impulseRot = Vector3.zero,
+		_impulseOffset = Vector3.zero,
+		_impulseDecaySpeed = 20,
 	}, ThirdPersonCamera)
 
 	return self
@@ -418,12 +429,12 @@ function ThirdPersonCamera:Start()
 		end
 
 		if input.KeyCode == selfImpl._config.ShoulderSwapKey then
-			selfImpl._shoulderSide *= -1
+			selfImpl._shoulderSideTarget *= -1
 			return
 		end
 
 		if input.KeyCode == selfImpl._config.ShoulderSwapGamepadButton then
-			selfImpl._shoulderSide *= -1
+			selfImpl._shoulderSideTarget *= -1
 			return
 		end
 	end), "Disconnect")
@@ -525,6 +536,8 @@ function ThirdPersonCamera:BindCharacter(character: Model?)
 	selfImpl._targetFov = math.clamp(selfImpl._prefFov, selfImpl._config.MinFov, selfImpl._config.MaxFov)
 	selfImpl._currentFov = selfImpl._targetFov
 	selfImpl._shoulderSide = selfImpl._config.ShoulderSide
+	selfImpl._shoulderSideTarget = selfImpl._config.ShoulderSide
+	selfImpl._shoulderOffsetX = selfImpl._config.ShoulderOffset.X * selfImpl._config.ShoulderSide
 
 	selfImpl._lastCFrame = nil
 	selfImpl._lastRayHit = false
@@ -572,6 +585,19 @@ function ThirdPersonCamera:ApplyPreferences(preferences: { Sensitivity: number?,
 	end
 end
 
+function ThirdPersonCamera:AddImpulse(rotation: Vector3?, offset: Vector3?, decaySpeed: number?)
+	local selfImpl = self :: ThirdPersonCameraImpl
+	if rotation then
+		selfImpl._impulseRot += rotation
+	end
+	if offset then
+		selfImpl._impulseOffset += offset
+	end
+	if decaySpeed and decaySpeed > 0 then
+		selfImpl._impulseDecaySpeed = decaySpeed
+	end
+end
+
 function ThirdPersonCamera:_getCameraBasis(): CFrame
 	local selfImpl = self :: ThirdPersonCameraImpl
 	local yawCFrame = CFrame.fromAxisAngle(Vector3.new(0, 1, 0), selfImpl._yaw)
@@ -581,6 +607,9 @@ end
 
 function ThirdPersonCamera:_update(dt: number)
 	local selfImpl = self :: ThirdPersonCameraImpl
+	if dt > 1 / 30 then
+		dt = 1 / 30
+	end
 	local camera = selfImpl._camera
 	if not camera then
 		return
@@ -757,7 +786,7 @@ function ThirdPersonCamera:_update(dt: number)
 			else
 				desiredYaw = rootYaw
 			end
-			
+
 			-- First: smooth toward desiredYaw
 			local speed = if useMoveAlign then selfImpl._config.AutoAlignSpeed else selfImpl._config.AutoAlignIdleSpeed
 			local a = expAlpha(speed, dt)
@@ -779,10 +808,37 @@ function ThirdPersonCamera:_update(dt: number)
 
 	local rotation = selfImpl:_getCameraBasis()
 
+	-- Smooth shoulder swap (over-shoulder)
+	local shoulderAlpha = expAlpha(selfImpl._config.ShoulderSwapSpeed, dt)
+	selfImpl._shoulderSide = lerpNumber(selfImpl._shoulderSide, selfImpl._shoulderSideTarget, shoulderAlpha)
+
 	-- Focus point
 	local shoulderBase = selfImpl._config.ShoulderOffset
-	local shoulderOffset = rotation:VectorToWorldSpace(Vector3.new(shoulderBase.X * selfImpl._shoulderSide, shoulderBase.Y, shoulderBase.Z))
-	local targetFocus = root.Position + selfImpl._config.FocusOffset + shoulderOffset
+	local pivot = root.Position + selfImpl._config.FocusOffset
+	local baseOffset = rotation:VectorToWorldSpace(Vector3.new(0, shoulderBase.Y, shoulderBase.Z))
+	local desiredRight = shoulderBase.X * selfImpl._shoulderSide
+	local rightOffset = Vector3.zero
+	if math.abs(desiredRight) > 1e-4 then
+		local right = rotation.RightVector
+		local sign = if desiredRight >= 0 then 1 else -1
+		local desiredMag = math.abs(desiredRight)
+		local allowedMag = desiredMag
+		if selfImpl._config.ShoulderCollisionEnabled then
+			local result = Workspace:Raycast(pivot, right * desiredMag * sign, selfImpl._raycastParams)
+			if result then
+				local hitDist = (result.Position - pivot).Magnitude - selfImpl._config.ShoulderCollisionBuffer
+				allowedMag = math.clamp(hitDist, 0, desiredMag)
+			end
+		end
+		local targetX = allowedMag * sign
+		local collideAlpha = expAlpha(selfImpl._config.ShoulderCollisionSmoothingSpeed, dt)
+		selfImpl._shoulderOffsetX = lerpNumber(selfImpl._shoulderOffsetX, targetX, collideAlpha)
+		rightOffset = right * selfImpl._shoulderOffsetX
+	else
+		selfImpl._shoulderOffsetX = 0
+	end
+
+	local targetFocus = pivot + baseOffset + rightOffset
 	local focusAlpha = expAlpha(selfImpl._config.FocusSmoothingSpeed, dt)
 	if selfImpl._focusPosition then
 		selfImpl._focusPosition = selfImpl._focusPosition + (targetFocus - selfImpl._focusPosition) * focusAlpha
@@ -837,13 +893,30 @@ function ThirdPersonCamera:_update(dt: number)
 	selfImpl._lastRayHit = hitThisFrame
 
 	-- Smooth distance
-	local distA = expAlpha(selfImpl._config.DistanceSmoothingSpeed, dt)
+	local distSpeed = selfImpl._config.DistanceSmoothingSpeed
+	if targetDistance < selfImpl._currentDistance then
+		distSpeed = selfImpl._config.DistanceCollisionSmoothingSpeed or distSpeed
+	end
+	local distA = expAlpha(distSpeed, dt)
 	selfImpl._currentDistance = lerpNumber(selfImpl._currentDistance, targetDistance, distA)
 
 	local finalOffset = rotation:VectorToWorldSpace(Vector3.new(0, 0, selfImpl._currentDistance)) -- +Z behind
 	local finalPosition = focus + finalOffset
 
 	local targetCFrame = CFrame.new(finalPosition, focus)
+	local impulseRot = selfImpl._impulseRot
+	local impulseOffset = selfImpl._impulseOffset
+	if impulseRot.Magnitude > 1e-4 or impulseOffset.Magnitude > 1e-4 then
+		local decay = math.exp(-selfImpl._impulseDecaySpeed * dt)
+		impulseRot *= decay
+		impulseOffset *= decay
+		selfImpl._impulseRot = impulseRot
+		selfImpl._impulseOffset = impulseOffset
+
+		local impulseCFrame = CFrame.new(impulseOffset)
+			* CFrame.fromOrientation(impulseRot.X, impulseRot.Y, impulseRot.Z)
+		targetCFrame = targetCFrame * impulseCFrame
+	end
 
 	-- Smooth final cframe
 	local cA = expAlpha(selfImpl._config.CFrameSmoothingSpeed, dt)
@@ -855,7 +928,11 @@ function ThirdPersonCamera:_update(dt: number)
 
 	local fovA = expAlpha(selfImpl._config.FovSmoothingSpeed, dt)
 	selfImpl._currentFov = lerpNumber(selfImpl._currentFov, selfImpl._targetFov, fovA)
-	camera.FieldOfView = selfImpl._currentFov
+	camera.FieldOfView = math.clamp(
+		selfImpl._currentFov,
+		selfImpl._config.MinFov,
+		selfImpl._config.MaxFov
+	)
 end
 
 return ThirdPersonCamera

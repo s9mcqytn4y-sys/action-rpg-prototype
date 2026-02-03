@@ -5,6 +5,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CollectionService = game:GetService("CollectionService")
 local ContextActionService = game:GetService("ContextActionService")
 local SoundService = game:GetService("SoundService")
+local UserInputService = game:GetService("UserInputService")
 
 local Packages = ReplicatedStorage:WaitForChild("Packages") :: Folder
 local Knit = require(Packages:WaitForChild("Knit") :: ModuleScript)
@@ -31,6 +32,7 @@ type CharacterState = {
 type InteractionController = {
 	KnitInit: (self: InteractionController) -> (),
 	KnitStart: (self: InteractionController) -> (),
+	RequestInteract: (self: InteractionController) -> (),
 }
 
 type InteractionControllerImpl = InteractionController & {
@@ -43,11 +45,15 @@ type InteractionControllerImpl = InteractionController & {
 	_remote: RemoteEvent?,
 	_sound: Sound?,
 	_currentTarget: Instance?,
+	_enemyTarget: Instance?,
 	_lastRequestAt: number,
 	_scanning: boolean,
 	_pendingTarget: Instance?,
 	_pendingSince: number,
 	_lostSince: number,
+	_enemyPendingTarget: Instance?,
+	_enemyPendingSince: number,
+	_enemyLostSince: number,
 	_tagObserver: any?,
 	_lifecycle: any?,
 	_thirdPerson: any?,
@@ -56,6 +62,8 @@ type InteractionControllerImpl = InteractionController & {
 	_getCharacterState: (self: InteractionControllerImpl) -> CharacterState?,
 	_scanOnce: (self: InteractionControllerImpl) -> (),
 	_setTarget: (self: InteractionControllerImpl, target: Instance?) -> (),
+	_setEnemyTarget: (self: InteractionControllerImpl, target: Instance?) -> (),
+	_applyFocusHint: (self: InteractionControllerImpl) -> (),
 	_tryInteract: (self: InteractionControllerImpl) -> (),
 	_bindInput: (self: InteractionControllerImpl) -> (),
 	_startScanLoop: (self: InteractionControllerImpl) -> (),
@@ -63,6 +71,7 @@ type InteractionControllerImpl = InteractionController & {
 	_hasLineOfSight: (self: InteractionControllerImpl, origin: Vector3, target: Instance, position: Vector3) -> boolean,
 	_updatePromptText: (self: InteractionControllerImpl, target: Instance?) -> (),
 	_isValidInteractable: (self: InteractionControllerImpl, target: Instance?) -> boolean,
+	_isValidEnemy: (self: InteractionControllerImpl, target: Instance?) -> boolean,
 	_logSnapshot: (self: InteractionControllerImpl, reason: string) -> (),
 }
 
@@ -84,11 +93,15 @@ function InteractionController:KnitInit()
 	selfImpl._remote = nil
 	selfImpl._sound = nil
 	selfImpl._currentTarget = nil
+	selfImpl._enemyTarget = nil
 	selfImpl._lastRequestAt = -math.huge
 	selfImpl._scanning = false
 	selfImpl._pendingTarget = nil
 	selfImpl._pendingSince = 0
 	selfImpl._lostSince = 0
+	selfImpl._enemyPendingTarget = nil
+	selfImpl._enemyPendingSince = 0
+	selfImpl._enemyLostSince = 0
 	selfImpl._tagObserver = nil
 	selfImpl._lifecycle = nil
 	selfImpl._thirdPerson = nil
@@ -216,6 +229,11 @@ function InteractionController:_bindInput()
 	end, false, table.unpack(keycodes))
 end
 
+function InteractionController:RequestInteract()
+	local selfImpl = self :: InteractionControllerImpl
+	selfImpl:_tryInteract()
+end
+
 function InteractionController:_startScanLoop()
 	local selfImpl = self :: InteractionControllerImpl
 	if selfImpl._scanning then
@@ -241,12 +259,19 @@ function InteractionController:_scanOnce()
 	local state = selfImpl:_getCharacterState()
 	if not state or not state.root then
 		selfImpl:_setTarget(nil)
+		selfImpl:_setEnemyTarget(nil)
 		return
 	end
 
 	if selfImpl._currentTarget then
 		local current = selfImpl._currentTarget
-		if not selfImpl:_isValidInteractable(current) or not selfImpl:_getTargetPosition(current) then
+		local currentPos = selfImpl:_getTargetPosition(current)
+		if not selfImpl:_isValidInteractable(current) or not currentPos then
+			selfImpl._pendingTarget = nil
+			selfImpl._pendingSince = 0
+			selfImpl._lostSince = 0
+			selfImpl:_setTarget(nil)
+		elseif InteractionConfig.UseLineOfSightClient and not selfImpl:_hasLineOfSight(state.root.Position, current, currentPos) then
 			selfImpl._pendingTarget = nil
 			selfImpl._pendingSince = 0
 			selfImpl._lostSince = 0
@@ -255,12 +280,67 @@ function InteractionController:_scanOnce()
 	end
 
 	local origin = state.root.Position
-	local candidates: { Instance }
-	if selfImpl._tagObserver then
-		candidates = selfImpl._tagObserver:GetTagged(Tags.Interactable)
-	else
-		candidates = CollectionService:GetTagged(Tags.Interactable)
+	local now = os.clock()
+	local function getTagged(tagName: TagName): { Instance }
+		if selfImpl._tagObserver then
+			return selfImpl._tagObserver:GetTagged(tagName)
+		end
+		return CollectionService:GetTagged(tagName)
 	end
+
+	if InteractionConfig.EnemyFocusEnabled then
+		local enemyCandidates = getTagged(Tags.Enemy)
+		local bestEnemy = nil
+		local bestEnemyDist = math.huge
+		for _, candidate in enemyCandidates do
+			if candidate and selfImpl:_isValidEnemy(candidate) then
+				local pos = selfImpl:_getTargetPosition(candidate)
+				if pos then
+					local dist = (pos - origin).Magnitude
+					if dist <= InteractionConfig.Radius and dist < bestEnemyDist then
+						if InteractionConfig.UseLineOfSightClient then
+							if not selfImpl:_hasLineOfSight(origin, candidate, pos) then
+								continue
+							end
+						end
+						bestEnemy = candidate
+						bestEnemyDist = dist
+					end
+				end
+			end
+		end
+
+		if bestEnemy == nil then
+			selfImpl._enemyPendingTarget = nil
+			if selfImpl._enemyTarget then
+				if selfImpl._enemyLostSince == 0 then
+					selfImpl._enemyLostSince = now
+				end
+				if now - selfImpl._enemyLostSince >= InteractionConfig.TargetReleaseTimeSec then
+					selfImpl:_setEnemyTarget(nil)
+				end
+			else
+				selfImpl:_setEnemyTarget(nil)
+			end
+		else
+			selfImpl._enemyLostSince = 0
+			if bestEnemy == selfImpl._enemyTarget then
+				selfImpl._enemyPendingTarget = nil
+				selfImpl._enemyPendingSince = 0
+			else
+				if bestEnemy ~= selfImpl._enemyPendingTarget then
+					selfImpl._enemyPendingTarget = bestEnemy
+					selfImpl._enemyPendingSince = now
+				elseif now - selfImpl._enemyPendingSince >= InteractionConfig.TargetAcquireTimeSec then
+					selfImpl:_setEnemyTarget(bestEnemy)
+				end
+			end
+		end
+
+	end
+
+	local candidates: { Instance }
+	candidates = getTagged(Tags.Interactable)
 
 	local bestTarget = nil
 	local bestDist = math.huge
@@ -282,7 +362,6 @@ function InteractionController:_scanOnce()
 		end
 	end
 
-	local now = os.clock()
 	if bestTarget == nil then
 		selfImpl._pendingTarget = nil
 		if selfImpl._currentTarget then
@@ -335,12 +414,35 @@ function InteractionController:_setTarget(target: Instance?)
 	if selfImpl._prompt then
 		selfImpl._prompt:SetAdornee(target)
 	end
-	if selfImpl._thirdPerson then
-		local pos = target and selfImpl:_getTargetPosition(target) or nil
-		selfImpl._thirdPerson:SetInteractFocus(pos)
-	end
 	selfImpl:_updatePromptText(target)
+	selfImpl:_applyFocusHint()
 	selfImpl:_logSnapshot("target")
+end
+
+function InteractionController:_setEnemyTarget(target: Instance?)
+	local selfImpl = self :: InteractionControllerImpl
+	if target and not selfImpl:_isValidEnemy(target) then
+		target = nil
+	end
+	if selfImpl._enemyTarget == target then
+		return
+	end
+
+	selfImpl._enemyTarget = target
+	selfImpl._enemyLostSince = 0
+	selfImpl._metrics:Increment("targetChangeCount", 1)
+	selfImpl:_applyFocusHint()
+	selfImpl:_logSnapshot("enemy")
+end
+
+function InteractionController:_applyFocusHint()
+	local selfImpl = self :: InteractionControllerImpl
+	if not selfImpl._thirdPerson then
+		return
+	end
+	local focusTarget = selfImpl._currentTarget or selfImpl._enemyTarget
+	local pos = focusTarget and selfImpl:_getTargetPosition(focusTarget) or nil
+	selfImpl._thirdPerson:SetInteractFocus(pos)
 end
 
 function InteractionController:_tryInteract()
@@ -370,7 +472,20 @@ function InteractionController:_isValidInteractable(target: Instance?): boolean
 		return false
 	end
 	-- CollectionService is the source of truth for tags.
+	if CollectionService:HasTag(target, Tags.Enemy) then
+		return false
+	end
 	return CollectionService:HasTag(target, Tags.Interactable)
+end
+
+function InteractionController:_isValidEnemy(target: Instance?): boolean
+	if not target then
+		return false
+	end
+	if not target:IsDescendantOf(workspace) then
+		return false
+	end
+	return CollectionService:HasTag(target, Tags.Enemy)
 end
 
 function InteractionController:_getTargetPosition(target: Instance): Vector3?
@@ -398,17 +513,33 @@ function InteractionController:_hasLineOfSight(origin: Vector3, target: Instance
 	params.FilterDescendantsInstances = character and { character } or {}
 	params.IgnoreWater = true
 
-	local direction = position - origin
-	local result = workspace:Raycast(origin, direction, params)
-	if not result or not result.Instance then
-		return true
+	local function isTargetHit(result: RaycastResult?): boolean
+		if not result or not result.Instance then
+			return true
+		end
+		local hit = result.Instance
+		return hit == target or hit:IsDescendantOf(target)
 	end
 
-	local hit = result.Instance
-	if hit == target or hit:IsDescendantOf(target) then
-		return true
+	local direction = position - origin
+	local result = workspace:Raycast(origin, direction, params)
+	if not isTargetHit(result) then
+		return false
 	end
-	return false
+
+	if InteractionConfig.UseLineOfSightCamera then
+		local camera = workspace.CurrentCamera
+		if camera then
+			local camOrigin = camera.CFrame.Position
+			local camDir = position - camOrigin
+			local camResult = workspace:Raycast(camOrigin, camDir, params)
+			if not isTargetHit(camResult) then
+				return false
+			end
+		end
+	end
+
+	return true
 end
 
 function InteractionController:_updatePromptText(target: Instance?)
@@ -429,7 +560,19 @@ function InteractionController:_updatePromptText(target: Instance?)
 		end
 	end
 
+	local keyLabel = InteractionConfig.InteractKey.Name
+	if UserInputService.TouchEnabled then
+		keyLabel = "TAP"
+	elseif UserInputService.GamepadEnabled then
+		if InteractionConfig.GamepadInteractKey then
+			keyLabel = (InteractionConfig.GamepadInteractKey :: Enum.KeyCode).Name
+		end
+	end
+
 	selfImpl._prompt:SetText(text)
+	if selfImpl._prompt.SetKeyLabel then
+		selfImpl._prompt:SetKeyLabel(keyLabel)
+	end
 	selfImpl._prompt:SetVisible(true)
 end
 

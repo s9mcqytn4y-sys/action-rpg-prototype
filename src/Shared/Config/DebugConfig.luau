@@ -16,9 +16,9 @@ local DebugConfig: DebugConfig = {
 	LogModeChanges = false,
 	LogCharacterBinding = false,
 	LogWarnings = true,
-	TagsEnabled = true,
+	TagsEnabled = false,
 	TagsLogFrequencySec = 10,
-	LifecycleEnabled = true,
+	LifecycleEnabled = false,
 	LifecycleLogFrequencySec = 8,
 }
 

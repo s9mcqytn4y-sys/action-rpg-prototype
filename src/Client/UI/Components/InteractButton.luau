@@ -13,7 +13,7 @@ local UITheme = require(Shared:WaitForChild("UI"):WaitForChild("UITheme") :: Mod
 local UITypography = require(Shared:WaitForChild("UI"):WaitForChild("UITypography") :: ModuleScript)
 local InputConfig = require(Shared:WaitForChild("Config"):WaitForChild("InputConfig") :: ModuleScript)
 
-local SprintButton = Roact.Component:extend("SprintButton")
+local InteractButton = Roact.Component:extend("InteractButton")
 
 type Props = {
 	Viewport: {
@@ -22,25 +22,22 @@ type Props = {
 	}?,
 }
 
-function SprintButton:init()
+function InteractButton:init()
 	self.state = {
-		isSprinting = false,
+		pressed = false,
 	}
 end
 
-function SprintButton:_setSprint(nextSprint: boolean)
-	self:setState({
-		isSprinting = nextSprint,
-	})
+function InteractButton:_interact()
 	local ok, controller = pcall(function()
-		return Knit.GetController("SprintController")
+		return Knit.GetController("InteractionController")
 	end)
-	if ok and controller and controller.SetSprint then
-		controller:SetSprint(nextSprint)
+	if ok and controller and controller.RequestInteract then
+		controller:RequestInteract()
 	end
 end
 
-function SprintButton:render()
+function InteractButton:render()
 	local props = self.props :: Props
 	if not UserInputService.TouchEnabled then
 		return nil
@@ -52,33 +49,50 @@ function SprintButton:render()
 	local isTablet = className == "Tablet"
 
 	local layout = InputConfig.MobileLayout
-	local baseOffset = layout.RightClusterOffset
+	local scale = if viewport then viewport.scale else 1
 	local sizeScale = if isPhone then 1.1 else if isTablet then 1.05 else 1
-	local size = math.floor(layout.SprintSize * sizeScale * (viewport and viewport.scale or 1))
-	local offsetX = math.floor(baseOffset.X * (viewport and viewport.scale or 1))
-	local offsetY = math.floor(baseOffset.Y * (viewport and viewport.scale or 1))
 
-	local active = self.state.isSprinting
-	local background = if active then UITheme.Colors.Accent else UITheme.Colors.SurfaceRaised
-	local textColor = if active then UITheme.Colors.Background else UITheme.Colors.Text
-	local borderTransparency = if active then 0.2 else 0.45
+	local baseOffset = layout.RightClusterOffset
+	local sprintSize = math.floor(layout.SprintSize * sizeScale * scale)
+	local attackSize = math.floor(layout.AttackSize * sizeScale * scale)
+	local interactSize = math.floor(layout.InteractSize * sizeScale * scale)
+	local gap = math.floor(layout.AttackGap * scale)
+
+	local offsetX = math.floor(baseOffset.X * scale)
+	local offsetY = math.floor(baseOffset.Y * scale) + sprintSize + gap + attackSize + gap
+
+	local pressed = self.state.pressed
+	local background = if pressed then UITheme.Colors.Accent else UITheme.Colors.SurfaceRaised
+	local textColor = if pressed then UITheme.Colors.Background else UITheme.Colors.Text
+	local borderTransparency = if pressed then 0.18 else 0.45
+	local scaleDown = if pressed then 0.94 else 1
 
 	return Roact.createElement("TextButton", {
 		AnchorPoint = Vector2.new(1, 1),
 		Position = UDim2.new(1, -offsetX, 1, -offsetY),
-		Size = UDim2.fromOffset(size, size),
+		Size = UDim2.fromOffset(interactSize, interactSize),
 		Text = "",
-		TextColor3 = textColor,
 		BackgroundColor3 = background,
 		BackgroundTransparency = 0,
 		AutoButtonColor = true,
-		Font = UITypography.Fonts.Emphasis,
-		TextSize = 16,
 		Selectable = true,
+		[Roact.Event.InputBegan] = function(_, input)
+			if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+				self:setState({ pressed = true })
+			end
+		end,
+		[Roact.Event.InputEnded] = function(_, input)
+			if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+				self:setState({ pressed = false })
+			end
+		end,
 		[Roact.Event.Activated] = function()
-			self:_setSprint(not self.state.isSprinting)
+			self:_interact()
 		end,
 	}, {
+		Scale = Roact.createElement("UIScale", {
+			Scale = scaleDown,
+		}),
 		Aspect = Roact.createElement("UIAspectRatioConstraint", {
 			AspectRatio = 1,
 		}),
@@ -92,22 +106,22 @@ function SprintButton:render()
 		}),
 		Ring = Roact.createElement("UIStroke", {
 			Color = UITheme.Colors.AccentSecondary,
-			Transparency = active and 0.25 or 0.8,
+			Transparency = pressed and 0.2 or 0.55,
 			Thickness = 2,
 		}),
 		Highlight = Roact.createElement("UIGradient", {
 			Rotation = 90,
 			Transparency = NumberSequence.new({
-				NumberSequenceKeypoint.new(0, 0.7),
+				NumberSequenceKeypoint.new(0, 0.65),
 				NumberSequenceKeypoint.new(1, 1),
 			}),
 		}),
 		Label = Roact.createElement("TextLabel", {
 			BackgroundTransparency = 1,
 			Size = UDim2.fromScale(1, 1),
-			Text = if active then "SPRINT" else "RUN",
+			Text = "USE",
 			TextColor3 = textColor,
-			TextSize = if isPhone then 16 else 15,
+			TextSize = if isPhone then 16 else 14,
 			Font = UITypography.Fonts.Emphasis,
 			TextXAlignment = Enum.TextXAlignment.Center,
 			TextYAlignment = Enum.TextYAlignment.Center,
@@ -121,4 +135,4 @@ local function mapStateToProps(state)
 	}
 end
 
-return RoactRodux.connect({ "UI" }, mapStateToProps)(SprintButton)
+return RoactRodux.connect({ "UI" }, mapStateToProps)(InteractButton)

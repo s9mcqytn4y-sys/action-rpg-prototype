@@ -1,16 +1,12 @@
-# Selene config
-ignore = [
-  "src/Shared/Types/*.luau"  # type defs
+# Selene config (v0.30+)
+std = "roblox"
+
+exclude = [
+  "src/Shared/Types/*.luau", # type defs
 ]
 
-[[rule]]
-name = "no-shadowing"
-enabled = true
-
-[[rule]]
-name = "undefined-global"
-enabled = true
-
-[[rule]]
-name = "unused-variable"
-enabled = true
+[lints]
+shadowing = "warn"
+undefined_variable = "warn"
+unused_variable = "warn"
+roblox_incorrect_roact_usage = "allow"

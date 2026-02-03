@@ -12,6 +12,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared") :: Folder
 local InteractionConfig = require(Shared:WaitForChild("Config"):WaitForChild("InteractionConfig") :: ModuleScript)
 local DebugConfig = require(Shared:WaitForChild("Config"):WaitForChild("DebugConfig") :: ModuleScript)
 local Metrics = require(Shared:WaitForChild("Util"):WaitForChild("Metrics") :: ModuleScript)
+local RemoteUtil = require(Shared:WaitForChild("Util"):WaitForChild("RemoteUtil") :: ModuleScript)
 local Tags = require(Shared:WaitForChild("Tags") :: ModuleScript)
 
 type MetricsType = typeof(Metrics.new(false))
@@ -26,25 +27,11 @@ local REMOTES_FOLDER_NAME = "Remotes"
 local REMOTE_NAME = "InteractRequest"
 
 local function ensureRemotesFolder(): Folder
-	local existing = ReplicatedStorage:FindFirstChild(REMOTES_FOLDER_NAME)
-	if existing and existing:IsA("Folder") then
-		return existing
-	end
-	local folder = Instance.new("Folder")
-	folder.Name = REMOTES_FOLDER_NAME
-	folder.Parent = ReplicatedStorage
-	return folder
+	return RemoteUtil.EnsureFolder(ReplicatedStorage, REMOTES_FOLDER_NAME)
 end
 
 local function ensureRemoteEvent(folder: Folder): RemoteEvent
-	local existing = folder:FindFirstChild(REMOTE_NAME)
-	if existing and existing:IsA("RemoteEvent") then
-		return existing
-	end
-	local remote = Instance.new("RemoteEvent")
-	remote.Name = REMOTE_NAME
-	remote.Parent = folder
-	return remote
+	return RemoteUtil.EnsureRemoteEvent(folder, REMOTE_NAME)
 end
 
 local function isValidInstance(instance: Instance?): boolean

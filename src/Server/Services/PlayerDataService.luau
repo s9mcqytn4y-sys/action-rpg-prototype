@@ -1,5 +1,8 @@
 local Players = game:GetService("Players")
+
+_G.__PROFILESTORE_SILENT = true
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local Packages = ReplicatedStorage:WaitForChild("Packages") :: Folder
 local Knit = require(Packages:WaitForChild("Knit") :: ModuleScript)
@@ -40,6 +43,9 @@ function PlayerDataService:KnitInit()
 	self.ProfileLoaded = Signal.new()
 	self.ProfileReleased = Signal.new()
 	self._profileStore = ProfileStore.New(GameConfig.Profile.StoreName, PlayerDataStore.Template)
+	if RunService:IsStudio() and GameConfig.Profile.UseMockInStudio then
+		self._profileStore = (self._profileStore :: any).Mock
+	end
 end
 
 function PlayerDataService:KnitStart()
@@ -95,7 +101,11 @@ function PlayerDataService:_loadProfile(player)
 		end)
 		:catch(function(err)
 			warn("[PlayerDataService] " .. tostring(err))
-			if player:IsDescendantOf(Players) then
+			local shouldKick = GameConfig.Profile.KickOnLoadFail
+			if RunService:IsStudio() then
+				shouldKick = false
+			end
+			if shouldKick and player:IsDescendantOf(Players) then
 				player:Kick("Data failed to load. Please rejoin.")
 			end
 		end)

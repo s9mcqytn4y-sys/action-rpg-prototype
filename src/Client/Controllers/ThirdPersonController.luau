@@ -27,6 +27,7 @@ type ThirdPersonController = {
 	KnitInit: (self: ThirdPersonController) -> (),
 	KnitStart: (self: ThirdPersonController) -> (),
 	SetInteractFocus: (self: ThirdPersonController, position: Vector3?) -> (),
+	AddCameraImpulse: (self: ThirdPersonController, rotation: Vector3?, offset: Vector3?, decaySpeed: number?) -> (),
 }
 
 type ThirdPersonControllerImpl = ThirdPersonController & {
@@ -270,6 +271,11 @@ end
 function ThirdPersonController:SetInteractFocus(position: Vector3?)
 	local selfImpl = self :: ThirdPersonControllerImpl
 	selfImpl._camera:SetFocusHint(position)
+end
+
+function ThirdPersonController:AddCameraImpulse(rotation: Vector3?, offset: Vector3?, decaySpeed: number?)
+	local selfImpl = self :: ThirdPersonControllerImpl
+	selfImpl._camera:AddImpulse(rotation, offset, decaySpeed)
 end
 
 return ThirdPersonController

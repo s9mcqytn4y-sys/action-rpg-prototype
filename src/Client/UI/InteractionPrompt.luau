@@ -12,6 +12,7 @@ type TweenMap = { [Instance]: Tween }
 type InteractionPrompt = {
 	SetVisible: (self: InteractionPrompt, isVisible: boolean) -> (),
 	SetText: (self: InteractionPrompt, text: string) -> (),
+	SetKeyLabel: (self: InteractionPrompt, text: string) -> (),
 	SetAdornee: (self: InteractionPrompt, target: Instance?) -> (),
 	PulseSuccess: (self: InteractionPrompt) -> (),
 	Destroy: (self: InteractionPrompt) -> (),
@@ -60,6 +61,7 @@ function InteractionPrompt.new(playerGui: PlayerGui): InteractionPrompt
 		local keyLabel = existing:FindFirstChild("KeyLabel", true)
 		local frame = existing:FindFirstChild("PromptFrame", true)
 		if label and keyLabel and frame and label:IsA("TextLabel") and keyLabel:IsA("TextLabel") and frame:IsA("Frame") then
+			existing.MaxDistance = InteractionConfig.PromptMaxDistance
 			return setmetatable({
 				_gui = existing,
 				_frame = frame,
@@ -78,6 +80,7 @@ function InteractionPrompt.new(playerGui: PlayerGui): InteractionPrompt
 	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	gui.Size = InteractionConfig.PromptBillboardSize
 	gui.StudsOffset = InteractionConfig.PromptStudsOffset
+	gui.MaxDistance = InteractionConfig.PromptMaxDistance
 	gui.Enabled = false
 
 	local frame = Instance.new("Frame")
@@ -195,6 +198,9 @@ function InteractionPrompt.new(playerGui: PlayerGui): InteractionPrompt
 end
 
 function InteractionPrompt:SetVisible(isVisible: boolean)
+	if isVisible and self._gui.Adornee == nil then
+		isVisible = false
+	end
 	self._gui.Enabled = true
 	if not isVisible then
 		self._gui.Adornee = nil
@@ -228,8 +234,16 @@ function InteractionPrompt:SetText(text: string)
 	self._label.Text = text
 end
 
+function InteractionPrompt:SetKeyLabel(text: string)
+	self._keyLabel.Text = text
+end
+
 function InteractionPrompt:SetAdornee(target: Instance?)
-	self._gui.Adornee = getAdornee(target)
+	local adornee = getAdornee(target)
+	self._gui.Adornee = adornee
+	if adornee == nil then
+		self:SetVisible(false)
+	end
 end
 
 function InteractionPrompt:PulseSuccess()
